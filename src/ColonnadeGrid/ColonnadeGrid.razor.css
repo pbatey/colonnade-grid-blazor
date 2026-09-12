@@ -1,0 +1,455 @@
+/*
+  Theming: every color/spacing value below is a CSS custom property with a
+  GitHub-Projects-inspired default. Override any of them from the host
+  application (e.g. on `:root` or a wrapping element) to re-theme the table
+  without editing this file. See the developer guide's "Theming" section.
+
+  These custom properties are defined on `.cg-root` and inherit down the DOM
+  tree (custom property inheritance is unaffected by Blazor's CSS isolation
+  scoping), so the child components' own .razor.css files
+  (GridRow/GroupHeaderRow/ColumnsMenu/FilterPopover) can reference them too —
+  each of those files owns the *structural* CSS for the elements it renders,
+  since Blazor only auto-scopes a component's own markup, not its children's.
+*/
+.cg-root {
+    /* GitHub Primer's actual borderColor-muted/fgColor-muted values.
+       All colors below are fixed — this component does not follow the
+       system's `prefers-color-scheme` (an earlier version did, and it
+       repeatedly caused elements to render in an unexpectedly dark/"black"
+       shade whenever the visitor's OS/browser preferred dark mode, even
+       though the surrounding host page had no dark styling of its own to
+       match). Override these custom properties yourself (e.g. under your
+       own dark-mode class or media query) if you want a themeable dark
+       variant. */
+    --cg-border-color: #d1d9e0b3;
+    /* Plain page/card white — GitHub Primer's canvas.default, as opposed to
+       --cg-header-bg's shaded canvas.subtle below. Used for the column
+       header row, which needs an *opaque* background once it's sticky (see
+       .cg-header-row) even though it reads as "the same color as the page"
+       in GitHub's own look. */
+    --cg-canvas-bg: #fff;
+    --cg-header-bg: #f6f8fa;
+    --cg-row-hover-bg: #f6f8fa;
+    --cg-row-selected-bg: #ddf4ff;
+    --cg-text-color: #1f2328;
+    --cg-muted-text-color: #59636e;
+    --cg-accent-color: #0969da;
+    --cg-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --cg-font-size: 14px;
+    --cg-row-height: 40px;
+    /* Horizontal padding shared by every cell (header, body, and — via
+       --cg-group-header-padding-y alongside it — group-header bars).
+       Pulled out as its own token, rather than a hardcoded 12px repeated in
+       each cell rule, specifically so CompactMode (see .cg-root-compact
+       below) can override both this and --cg-row-height/
+       --cg-group-header-padding-y together to shrink the whole table
+       uniformly. */
+    --cg-cell-padding-x: 12px;
+    --cg-group-header-padding-y: 6px;
+    --cg-radius: 6px;
+
+    /* Floating dropdown chrome (ColumnMenu/ColumnsMenu, and FilterPopover
+       nested inside ColumnMenu) — see the theming note above; these were
+       already fixed/light-only even before the rest of the table stopped
+       following prefers-color-scheme. */
+    --cg-popover-bg: #fff;
+    --cg-popover-text-color: #1f2328;
+    --cg-popover-muted-text-color: #a5b0ba;
+    --cg-popover-hover-bg: #f6f8fa;
+    /* Lighter than --cg-border-color on purpose — a dropdown floating on
+       its own (with a box-shadow for depth) reads better with a more
+       subtle edge than the in-table separators need. */
+    --cg-popover-border-color: #d1d9e080;
+    /* Deliberately its own token, not var(--cg-row-height): dropdown item
+       spacing is meant to stay "comfortable" even when CompactMode shrinks
+       --cg-row-height (see .cg-root-compact below, which does NOT touch
+       this one). It happens to equal the default row height only because
+       that's the comfortable spacing that was already tuned and approved —
+       not because the two are conceptually the same value. */
+    --cg-popover-line-height: 40px;
+
+    font-family: var(--cg-font-family);
+    font-size: var(--cg-font-size);
+    color: var(--cg-text-color);
+    /*
+      Creates a new stacking context scoped to this component, without any
+      of the other side effects `position`/`transform` would carry (this is
+      exactly what `isolation` is for). This contains all of ColonnadeGrid's
+      internal z-index usage (the sticky header row, the click-away backdrop,
+      the dropdown panels) so those numbers only ever compete against *each
+      other* — never against a host page's own z-index'd elements (a fixed
+      navbar, a modal, ...), which they otherwise would, since neither this
+      element nor .cg-grid create a stacking context of their own.
+    */
+    isolation: isolate;
+}
+
+/* Set via the CompactMode parameter — overrides the three density-related
+   tokens above (row height and both cell-padding tokens) to fit more rows
+   on screen. Every other CompactMode-affected style (.cg-cell,
+   .cg-group-header-cell, in this file and the other component .razor.css
+   files that repeat them — see this file's own header comment on why they
+   repeat) already reads its spacing from these custom properties rather
+   than a hardcoded value, so overriding just these three here is enough to
+   propagate through the whole table without CompactMode needing its own
+   modifier class anywhere else. */
+.cg-root-compact {
+    --cg-row-height: 32px;
+    --cg-cell-padding-x: 8px;
+    --cg-group-header-padding-y: 4px;
+}
+
+.cg-columns-menu-anchor {
+    position: relative;
+    display: inline-flex;
+}
+
+/*
+  Shared "ghost" icon-button style: uncolored/borderless by default, a light
+  grey rounded background appears on hover, keyboard focus, or when the
+  button represents something currently open/toggled (.cg-header-icon-button-active,
+  applied in markup for the "..." and "+" triggers while their dropdown is
+  open). Applies to every icon-only button in the header row: the sort
+  toggle, the filter-state indicator, the "..." column menu trigger, and the
+  "+" add-column trigger — see ColonnadeGrid.razor.cs/.razor for where each
+  is used. All four render at the same size (icon components default their
+  own `Size` to 16 regardless of surrounding font-size, so there's no need
+  for per-button font-size tweaks to keep them visually consistent).
+*/
+.cg-header-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    border: none;
+    background: transparent;
+    color: var(--cg-muted-text-color);
+    cursor: pointer;
+    padding: 4px;
+    margin: 0;
+    font: inherit;
+    border-radius: 6px;
+    line-height: 1;
+}
+
+.cg-header-icon-button:hover,
+.cg-header-icon-button:focus-visible,
+.cg-header-icon-button.cg-header-icon-button-active {
+    background: var(--cg-row-hover-bg);
+    color: var(--cg-text-color);
+}
+
+.cg-header-icon-button:active {
+    background: var(--cg-border-color);
+}
+
+.cg-grid {
+    /*
+      No outer border/radius and no overflow-x:auto here — both are a
+      *container's* responsibility, not this component's: whatever element
+      the host page wraps ColonnadeGrid in decides whether the table gets
+      a border/card look, and whether it scrolls horizontally when columns
+      don't fit or simply overflows the page. This component only guarantees
+      that its own rows size consistently (see .cg-row below) so that
+      *whichever* behavior the host chooses actually works correctly.
+    */
+    display: block;
+}
+
+/* Header row is rendered directly by this component; body/group-header rows
+   are rendered by GridRow/GroupHeaderRow and repeat this base rule in their
+   own .razor.css so columns still line up (see file header comment). */
+.cg-row {
+    display: grid;
+    /* No align-items:center — grid items default to stretch, so each cell's
+       own box (and so its border-right divider, see .cg-cell) fills the
+       full row height. Vertical centering of a plain cell's own text is
+       done via .cg-cell's line-height instead; cells that need to center
+       multiple inline children (header/select cells) use their own
+       display:flex + align-items:center. */
+    min-height: var(--cg-row-height);
+    /*
+      Deliberately NOT width:max-content. Each .cg-row is its own
+      independent grid formatting context, and `width:max-content` sizes a
+      grid container from the *max-content contribution* of its tracks —
+      for a `minmax(140px, 1fr)` track that's driven by the actual content
+      inside that specific cell (similar to `auto`), not just the 140px
+      floor. Rows with longer unwrapped text therefore computed a wider
+      "natural" row width than rows with shorter text, so their `1fr`
+      tracks resolved to different pixel widths from row to row — a real,
+      shipped misalignment bug, not merely a theoretical one.
+      Leaving `width` at its default (`auto`, i.e. 100% of the .cg-grid
+      block container) makes every row's `1fr` tracks resolve identically
+      regardless of content. It also keeps this component's own overflow
+      behavior a non-issue: when the columns' 140px floors don't fit, the
+      grid's tracks overflow the row's now-fixed 100% box (they never shrink
+      below their minmax floor) and that overflow just propagates outward —
+      whether it scrolls (a host container with overflow-x:auto) or simply
+      overflows the page is entirely the host's call, not this component's;
+      see .cg-grid below.
+    */
+    border-bottom: 1px solid var(--cg-border-color);
+}
+
+.cg-row:last-child {
+    border-bottom: none;
+}
+
+.cg-header-row {
+    /* --cg-canvas-bg (plain white), not --cg-header-bg: the column header
+       row is plain white/page-colored in GitHub's own look, distinct from
+       the shaded group-header bars, which do use --cg-header-bg. Opaque
+       rather than transparent because the row can be sticky (see
+       .cg-header-row-sticky below) — a transparent sticky header would let
+       body rows scroll up visibly behind/through it instead of being
+       covered by it. */
+    background: var(--cg-canvas-bg);
+    font-weight: 500;
+    /* Smaller than the body's --cg-font-size (14px) — header labels are
+       deliberately more compact, matching GitHub's own table header. Icon
+       sizes (sort/filter/group indicators, "..."/"+") are unaffected: each
+       icon component's own `Size` parameter is a fixed pixel count, not
+       relative to font-size. */
+    font-size: 12px;
+    color: var(--cg-muted-text-color);
+    /* `relative`, not `static` — kept even when EnableStickyHeader is false
+       (see .cg-header-row-sticky, which overrides this to `sticky`)
+       because z-index below only has any effect on a positioned element (or
+       a flex/grid item, which this row isn't — its parent .cg-grid is
+       plain `display: block`). Dropping to `static` when non-sticky would
+       silently break the stacking-context fix described on
+       .cg-dropdown-backdrop: a per-column "..." dropdown could open with
+       the click-away backdrop painting over it again, since z-index:2 would
+       simply be ignored on a statically positioned element. */
+    position: relative;
+    /* Must be higher than .cg-dropdown-backdrop's z-index (see below) — a
+       dropdown anchored inside this row (ColumnMenu/ColumnsMenu) needs the
+       whole row, as a stacking-context unit, to paint above the backdrop;
+       the dropdown's own higher z-index only settles ordering *within* this
+       row's children, not against siblings of this row like the backdrop.
+       This holds regardless of EnableStickyHeader, which is exactly why
+       z-index/position:relative live here and not on .cg-header-row-sticky
+       alongside position:sticky. */
+    z-index: 2;
+    /* Overrides .cg-row's own 1px border-bottom: the header's separator is
+       drawn per-cell instead (see .cg-header-cell/.cg-select-cell/
+       .cg-add-column-cell below), so only the active column's cell shows
+       the dark underline rather than the whole row — a row-level border
+       here would just double up behind those cell borders. */
+    border-bottom: none;
+    /* Starts fully transparent and fades in via .cg-header-row-stuck below
+       — see .cg-sticky-sentinel's comment for how "stuck" is detected.
+       Browsers interpolate a box-shadow transition from `none` as a shadow
+       with 0 alpha, so this animates as a genuine fade rather than an
+       abrupt jump. */
+    box-shadow: 0 2px 4px rgba(140, 149, 159, 0);
+    transition: box-shadow 150ms ease-out;
+}
+
+/* Set via the EnableStickyHeader parameter (default true) — overrides the
+   base rule's position:relative with position:sticky, which is what
+   actually pins the row to the top of its scroll container while scrolling.
+   Kept as a separate modifier (rather than folding into .cg-header-row
+   directly) so a host that doesn't want a sticky header can opt out via a
+   plain parameter without losing the position:relative z-index requirement
+   documented above. */
+.cg-header-row-sticky {
+    position: sticky;
+    top: 0;
+}
+
+/* Applied by initStickyHeaderShadow (colonnadeGrid.js) once the header has
+   actually scrolled into its sticky position — not merely because
+   .cg-header-row-sticky is present, which alone doesn't mean it's
+   currently stuck. Requires .cg-header-row-sticky too (not just this class
+   alone): the IntersectionObserver driving this class runs unconditionally
+   regardless of EnableStickyHeader (see the C# side's comment on why), so
+   gating the actual shadow on both classes together is what keeps a
+   non-sticky header from ever showing a "stuck" shadow it has no sticky
+   behavior to justify. Without JS interop's IntersectionObserver, the
+   header simply never gets this class and stays shadow-less, which is a
+   reasonable no-JS fallback (a static, non-stuck-looking header) rather
+   than a broken one. */
+.cg-header-row-sticky.cg-header-row-stuck {
+    box-shadow: 0 4px 4px rgba(140, 149, 159, 0.1);
+}
+
+.cg-sticky-sentinel {
+    /* Zero-height and non-interactive — this element exists purely as an
+       IntersectionObserver target (see initStickyHeaderShadow), not to
+       occupy any visible space or affect layout/column alignment. */
+    height: 0;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+}
+
+.cg-cell {
+    padding: 0 var(--cg-cell-padding-x);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Vertically centers a plain cell's own single line of text now that
+       cells stretch to the full row height (see .cg-row's align-items
+       comment) — cells that need to center multiple inline children
+       (header/select cells) use their own display:flex instead, which
+       overrides this. */
+    line-height: var(--cg-row-height);
+    position: relative;
+    /* Vertical column separators, matching GitHub's own subtle grid lines
+       (--cg-border-color is GitHub Primer's borderColor-muted, deliberately
+       semi-transparent so it reads consistently against the different
+       surface colors it's drawn on — row background, header background,
+       etc.). Repeated in GridRow.razor.css since CSS isolation doesn't scope
+       across component files (see the file header comment). border-right
+       (not a background/pseudo-element) is what makes it span the cell's
+       full stretched height for free. */
+    border-right: 1px solid var(--cg-border-color);
+}
+
+.cg-cell:last-of-type {
+    border-right: 0;
+}
+
+.cg-select-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+/* This file's .cg-select-cell is the header row's own select-all checkbox
+   cell (the CSS-isolation scope attribute Blazor adds means this rule never
+   reaches GridRow.razor's own same-named body-row cell — see the repeated-
+   rule comment on .cg-cell above), so it's grouped here with the other two
+   header-only cells for the shared bottom border. */
+.cg-select-cell,
+.cg-header-cell,
+.cg-add-column-cell {
+    /* Thicker than a plain row separator, and muted by default; the active
+       column (see ColonnadeGrid.razor.cs's IsColumnActive) gets its own
+       cell switched to the full-strength text color instead, for clear
+       contrast against the same --cg-border-color used everywhere else.
+       This lives per-cell, not on .cg-header-row as a whole, so only the
+       column(s) actually being sorted/filtered/grouped by show the dark
+       underline — not the entire header row. */
+    border-bottom: 2px solid var(--cg-border-color);
+}
+
+.cg-header-cell-active {
+    border-bottom-color: var(--cg-text-color);
+}
+
+.cg-header-cell,
+.cg-add-column-cell {
+    /* Overrides .cg-cell's overflow:hidden (needed there for body-cell text
+       ellipsis): both of these host an absolutely-positioned popover
+       (ColumnMenu / ColumnsMenu) that must be able to render outside the
+       cell's own small box, not be clipped to it. Header text truncation
+       still works — it's handled by .cg-header-text's own overflow:hidden
+       on the inner span, not by this cell. */
+    overflow: visible;
+}
+
+.cg-header-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    user-select: none;
+}
+
+.cg-header-text {
+    /* Grows to fill the cell, pushing the sort indicator and "..." menu
+       button to the right edge (min-width:0 lets it actually shrink/ellipsis
+       instead of forcing the cell wider — the default flex-item min-width
+       is content-based, not 0). */
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cg-group-indicator {
+    /* Purely a status badge (not a button, unlike its sort/filter siblings) —
+       no click handler, so it keeps its own muted color rather than the
+       ghost-button treatment. */
+    display: inline-flex;
+    align-items: center;
+    color: var(--cg-muted-text-color);
+    flex: none;
+}
+
+.cg-column-menu-anchor {
+    position: relative;
+    display: inline-flex;
+}
+
+.cg-add-column-cell {
+    display: flex;
+    align-items: center;
+    /* Left-justified, not centered: this cell can grow wider than its
+       button's own 40px (see BuildGridTemplateColumns's comment on the
+       all-fixed-column-widths case, where this track flexes to fill
+       leftover row width) — centering would leave the "+" button floating
+       in the middle of that extra space instead of anchored next to the
+       last column's own border, where it reads as belonging to the header
+       row rather than an oddly-placed floating control. */
+    justify-content: flex-start;
+    padding: 0 8px;
+}
+
+.cg-resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
+    touch-action: none;
+}
+
+.cg-resize-handle:hover {
+    background: var(--cg-accent-color);
+    opacity: 0.5;
+}
+
+.cg-status-row {
+    padding: 16px 12px;
+    color: var(--cg-muted-text-color);
+    text-align: center;
+}
+
+.cg-loading {
+    padding: 16px 4px;
+    color: var(--cg-muted-text-color);
+}
+
+.cg-dropdown-backdrop {
+    /*
+      Invisible click-catcher for closing an open dropdown on an outside
+      click — see the markup comment in ColonnadeGrid.razor.
+
+      z-index:1, deliberately LOWER than .cg-header-row's z-index:2 — not a
+      typo. The dropdown panels (ColumnMenu/ColumnsMenu, z-index:10) are
+      nested *inside* the header row, so their z-index only settles ordering
+      among the header row's own children; it does nothing to establish the
+      header row *as a whole* above this backdrop, which lives outside that
+      row entirely. Stacking context comparisons happen ancestor-first: two
+      elements in different stacking-context lineages are ordered by
+      comparing their nearest stacking-context-establishing ancestors, not
+      by whichever descendant happens to have the biggest z-index number.
+      An earlier version of this rule used z-index:9 (with the header row at
+      1) on the assumption that the dropdown's z-index:10 would simply "win"
+      against this backdrop since 10 > 9 — a real, shipped bug (confirmed via
+      real click hit-testing in a browser, not just bUnit's simulated clicks,
+      which invoke a target element's handler directly and so can't catch
+      this): every click inside an open dropdown was silently swallowed by
+      this backdrop instead of reaching the menu item underneath.
+      Still safely above ordinary body rows (which set no z-index at all),
+      so outside clicks on the table body correctly reach this backdrop.
+    */
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+}

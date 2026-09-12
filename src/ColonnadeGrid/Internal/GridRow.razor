@@ -1,0 +1,46 @@
+@namespace ColonnadeGrid.Internal
+@typeparam TItem
+@attribute [CascadingTypeParameter(nameof(TItem))]
+@using ColonnadeGrid.Abstractions
+
+<div class="cg-row cg-body-row @(Selected ? "cg-row-selected" : "")" role="row" style="@GridTemplateStyle">
+    @if (EnableSelection)
+    {
+        <div class="cg-cell cg-select-cell" role="gridcell">
+            <input type="checkbox" checked="@Selected" @onchange="OnToggleSelect" />
+        </div>
+    }
+    @foreach (var column in Columns)
+    {
+        <div class="cg-cell" role="gridcell">
+            @if (column.CellTemplate is not null)
+            {
+                @column.CellTemplate(Item)
+            }
+            else
+            {
+                @column.GetDisplayText(Item)
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public TItem Item { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<GridColumnBase<TItem>> Columns { get; set; } = [];
+
+    [Parameter]
+    public bool EnableSelection { get; set; }
+
+    [Parameter]
+    public bool Selected { get; set; }
+
+    [Parameter]
+    public EventCallback OnToggleSelect { get; set; }
+
+    [Parameter]
+    public string? GridTemplateStyle { get; set; }
+}

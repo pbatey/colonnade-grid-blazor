@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/ColonnadeGrid.Demo/ColonnadeGrid.Demo.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/ColonnadeGrid/ColonnadeGrid.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ColonnadeGrid.Tests/ColonnadeGrid.Tests.csproj" />
+  </Folder>
+</Solution>

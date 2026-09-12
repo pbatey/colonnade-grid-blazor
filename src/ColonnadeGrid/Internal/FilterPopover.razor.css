@@ -1,0 +1,52 @@
+/*
+  Rendered inline as the "Filter by values…" view inside a column's
+  ColumnMenu dropdown (which supplies the floating panel's own chrome —
+  position, border, shadow, background) rather than floating independently,
+  so this file only owns the filter form's own layout, not panel
+  positioning.
+*/
+.cg-filter-popover {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 8px;
+    font-weight: normal;
+    cursor: default;
+}
+
+.cg-filter-operator,
+.cg-filter-value {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--cg-popover-border-color);
+    border-radius: 4px;
+    padding: 4px 6px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.cg-filter-popover-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.cg-filter-popover-actions button {
+    font: inherit;
+    border: 1px solid var(--cg-popover-border-color);
+    background: transparent;
+    /* --cg-popover-text-color (fixed light), not --cg-text-color — this
+       form is always rendered inside ColumnMenu's fixed-light popover, see
+       .cg-root's comment in ColonnadeGrid.razor.css. */
+    color: var(--cg-popover-text-color);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.cg-filter-popover-actions button:first-child {
+    background: var(--cg-accent-color);
+    border-color: var(--cg-accent-color);
+    color: #fff;
+}

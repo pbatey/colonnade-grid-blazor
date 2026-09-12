@@ -1,0 +1,123 @@
+.cg-column-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 10;
+    width: 230px;
+    padding: 4px 0;
+    /* --cg-popover-*, not --cg-text-color/--cg-row-hover-bg: this menu
+       has always used a fixed-light palette independent of the rest of the
+       table's own (also fixed-light — see .cg-root's comment in
+       ColonnadeGrid.razor.css) theme tokens, so it stays visually
+       consistent even if a host app overrides the table's tokens but not
+       these dropdown-specific ones (or vice versa). */
+    background: var(--cg-popover-bg);
+    color: var(--cg-popover-text-color);
+    /* Explicit font-size: this menu is rendered inside a column header
+       cell, whose own font-size is smaller (12px) than the table body's —
+       without this, the dropdown would inherit that 12px instead of the
+       table's normal 14px. */
+    font-size: var(--cg-font-size);
+    /* Same reasoning as font-size above, for line-height: the header cell
+       sets its own line-height to --cg-row-height (see .cg-cell in
+       ColonnadeGrid.razor.css) so a single line of cell text is centered
+       in the row — CompactMode shrinks that value. `position: fixed` moves
+       this panel visually, but it's still a DOM *descendant* of that header
+       cell (CSS positioning doesn't change the DOM tree), so without this,
+       line-height inheritance would carry the row's own (possibly
+       CompactMode-shrunk) height down into every menu item. Pinning it to
+       --cg-popover-line-height (a fixed 40px, NOT --cg-row-height —
+       deliberately its own token; see .cg-root) rather than to `normal`
+       keeps this menu's comfortable spacing exactly as tuned, regardless of
+       the table's own row density — `normal` would instead size each item
+       off the font's own natural line-height (~17px for 14px text), which
+       is markedly *more* compact than the intended default, not neutral. */
+    line-height: var(--cg-popover-line-height);
+    border: 1px solid var(--cg-popover-border-color);
+    border-radius: var(--cg-radius);
+    box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+    font-weight: normal;
+    text-align: left;
+    cursor: default;
+}
+
+.cg-column-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 2px 12px;
+    border: none;
+    background: transparent;
+    color: var(--cg-popover-text-color);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    margin-bottom: -5px;
+    margin-top: -5px;
+}
+
+.cg-column-menu-item:hover:not(:disabled) {
+    background: var(--cg-popover-hover-bg);
+}
+
+.cg-column-menu-item:disabled {
+    color: var(--cg-popover-muted-text-color);
+    cursor: default;
+}
+
+.cg-column-menu-item span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cg-column-menu-item-active {
+    color: var(--cg-popover-muted-text-color);
+    cursor: default;
+}
+
+.cg-column-menu-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    border: none;
+    background: transparent;
+    color: var(--cg-popover-muted-text-color);
+    cursor: pointer;
+    padding: 2px;
+}
+
+.cg-column-menu-clear:hover {
+    color: var(--cg-popover-text-color);
+}
+
+.cg-column-menu-divider {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--cg-popover-border-color);
+}
+
+.cg-column-menu-back {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 2px 12px;
+    margin-bottom: 4px;
+    border: none;
+    border-bottom: 1px solid var(--cg-popover-border-color);
+    background: transparent;
+    color: var(--cg-popover-muted-text-color);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cg-column-menu-back:hover {
+    color: var(--cg-popover-text-color);
+}

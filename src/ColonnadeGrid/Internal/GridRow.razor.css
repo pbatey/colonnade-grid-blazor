@@ -1,0 +1,53 @@
+/* Repeats the base .cg-row grid rule from ColonnadeGrid.razor.css — Blazor
+   CSS isolation only auto-scopes a component's own markup, so a shared class
+   name must be (re)defined in each component file that renders it. Custom
+   properties (--cg-*) still inherit from the parent's .cg-root. */
+.cg-row {
+    display: grid;
+    /* No align-items:center — see ColonnadeGrid.razor.css's .cg-row for
+       why: cells stretch to the full row height so their border-right
+       divider spans it too; .cg-cell's line-height centers single-line
+       text instead. */
+    min-height: var(--cg-row-height);
+    /* No width:max-content here — see ColonnadeGrid.razor.css's .cg-row
+       for why: it caused each row's 1fr columns to size from that row's
+       own content, misaligning row to row. Default width (100% of
+       .cg-grid) keeps every row's tracks identical. */
+    border-bottom: 1px solid var(--cg-border-color);
+}
+
+.cg-row:last-child {
+    border-bottom: none;
+}
+
+.cg-body-row:hover {
+    background: var(--cg-row-hover-bg);
+}
+
+.cg-row-selected {
+    background: var(--cg-row-selected-bg);
+}
+
+.cg-cell {
+    padding: 0 var(--cg-cell-padding-x);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Body cell text is muted, not full-strength --cg-text-color, matching
+       GitHub's own table cell styling. */
+    color: var(--cg-muted-text-color);
+    /* Vertically centers a plain cell's single line of text now that cells
+       stretch to the full row height (see .cg-row above). */
+    line-height: var(--cg-row-height);
+    position: relative;
+    /* Vertical column separators, matching GitHub's grid lines and the
+       header row's own .cg-cell rule in ColonnadeGrid.razor.css. */
+    border-right: 1px solid var(--cg-border-color);
+}
+
+.cg-select-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}

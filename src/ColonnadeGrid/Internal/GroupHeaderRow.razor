@@ -1,0 +1,45 @@
+@namespace ColonnadeGrid.Internal
+@using BlazorOcticons.Octicons
+
+@*
+    Uses the same grid-template-columns track list as the header/body rows
+    (passed in as GridTemplateStyle, exactly like GridRow) so this row's own
+    box is exactly as wide as a data row — including when columns overflow
+    and .cg-grid scrolls horizontally. The "full width bar" effect comes
+    from the inner cell spanning every track (grid-column: 1 / -1), not from
+    this row using a different (non-grid) display mode, so it can't fall out
+    of sync with the scrollable width of the rows around it.
+*@
+<div class="cg-row cg-group-header-row" role="row" style="@GridTemplateStyle" @onclick="OnToggle">
+    <div class="cg-group-header-cell" role="gridcell">
+        <span class="cg-group-chevron">
+            @if (Collapsed)
+            {
+                <ChevronRight16 Color="currentColor" />
+            }
+            else
+            {
+                <ChevronDown16 Color="currentColor" />
+            }
+        </span>
+        <span class="cg-group-title">@DisplayText</span>
+        <span class="cg-group-count">@Count</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string DisplayText { get; set; } = "";
+
+    [Parameter]
+    public int Count { get; set; }
+
+    [Parameter]
+    public bool Collapsed { get; set; }
+
+    [Parameter]
+    public EventCallback OnToggle { get; set; }
+
+    [Parameter]
+    public string? GridTemplateStyle { get; set; }
+}

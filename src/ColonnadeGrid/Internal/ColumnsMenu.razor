@@ -1,0 +1,78 @@
+@namespace ColonnadeGrid.Internal
+@typeparam TItem
+@using Microsoft.JSInterop
+@using ColonnadeGrid.Abstractions
+@using ColonnadeGrid.Models
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="cg-columns-menu" @ref="_panelRef" @onclick:stopPropagation="true" aria-label="Columns">
+    <ul class="cg-columns-menu-list">
+        @foreach (var (columnState, column) in OrderedColumns)
+        {
+            <li class="cg-columns-menu-item">
+                <label>
+                    <input type="checkbox" checked="@columnState.Visible"
+                           @onchange="e => OnVisibilityChanged.InvokeAsync((columnState.Id, (bool)(e.Value ?? false)))" />
+                    <span>@column.Title</span>
+                </label>
+            </li>
+        }
+    </ul>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<GridColumnBase<TItem>> Columns { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public GridState State { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<(string ColumnId, bool Visible)> OnVisibilityChanged { get; set; }
+
+    private IReadOnlyList<(ColumnState State, GridColumnBase<TItem> Column)> OrderedColumns =>
+        State.Columns
+            .Select(cs => (State: cs, Column: Columns.FirstOrDefault(c => c.Id == cs.Id)))
+            .Where(t => t.Column is not null)
+            .Select(t => (t.State, t.Column!))
+            .ToList();
+
+    private ElementReference _panelRef;
+    private IJSObjectReference? _module;
+
+    // Same reasoning as ColumnMenu's OnAfterRenderAsync: escape the hosting
+    // container's overflow clipping via a JS-measured position:fixed. This
+    // panel's size never changes after its first render (no internal view
+    // switching), so first-render-only is sufficient here.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ColonnadeGrid/colonnadeGrid.js");
+            await _module.InvokeVoidAsync("positionFloatingPanel", _panelRef);
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+}

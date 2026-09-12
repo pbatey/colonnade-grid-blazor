@@ -1,0 +1,149 @@
+@page "/"
+@using ColonnadeGrid.Demo.Models
+@using ColonnadeGrid.Demo.Services
+
+<PageTitle>ColonnadeGrid Demo</PageTitle>
+
+@*
+    This wrapper — not body itself — is what keeps the intro text/toolbar in
+    a readable column. body is intentionally unconstrained (see app.css) so
+    that the table container below, which lives *outside* this wrapper, can
+    actually reach the full page width when "Full width" is selected instead
+    of just filling body's own (previously narrower) content box.
+*@
+<div class="demo-page-content">
+    <h1>ColonnadeGrid demo</h1>
+    <p>
+        A GitHub Projects-style backlog table: click a sortable column header to sort,
+        use a column's <strong>▾</strong> button to filter, choose a "Group by" column,
+        drag a column's right edge to resize it, and use the <strong>Columns</strong>
+        button to show/hide or reorder columns.
+    </p>
+
+    <div class="demo-toolbar">
+        <label>
+            <input type="radio" name="source" checked="@(!_useRemoteProvider)" @onchange="() => SetSource(false)" />
+            In-memory (<code>Items</code>)
+        </label>
+        <label>
+            <input type="radio" name="source" checked="@_useRemoteProvider" @onchange="() => SetSource(true)" />
+            Simulated remote (<code>IDataProvider&lt;TItem&gt;</code>, ~400ms latency)
+        </label>
+        <span class="demo-selection-count">Selected: @_selectedKeys.Count</span>
+    </div>
+
+    <div class="demo-toolbar">
+        <span class="demo-toolbar-label">Layout:</span>
+        <label>
+            <input type="radio" name="layout" checked="@_useCenteredContainer" @onchange="() => SetLayout(true)" />
+            Centered container
+        </label>
+        <label>
+            <input type="radio" name="layout" checked="@(!_useCenteredContainer)" @onchange="() => SetLayout(false)" />
+            Full width
+        </label>
+    </div>
+
+    <div class="demo-toolbar">
+        <span class="demo-toolbar-label">Row selection:</span>
+        <label>
+            <input type="radio" name="selection" checked="@_enableRowSelection" @onchange="() => SetRowSelectionEnabled(true)" />
+            Enabled
+        </label>
+        <label>
+            <input type="radio" name="selection" checked="@(!_enableRowSelection)" @onchange="() => SetRowSelectionEnabled(false)" />
+            Disabled
+        </label>
+    </div>
+
+    <div class="demo-toolbar">
+        <span class="demo-toolbar-label">Density:</span>
+        <label>
+            <input type="radio" name="density" checked="@(!_compactMode)" @onchange="() => SetCompactMode(false)" />
+            Comfortable
+        </label>
+        <label>
+            <input type="radio" name="density" checked="@_compactMode" @onchange="() => SetCompactMode(true)" />
+            Compact
+        </label>
+    </div>
+</div>
+
+@*
+    ColonnadeGrid no longer draws its own outer border or handles its own
+    horizontal scrolling — both are this *container's* job now, not the
+    component's. This div demonstrates both: it supplies the border/rounding
+    (and the max-width/centering, when that mode is selected) and the
+    overflow-x:auto that makes the table scroll horizontally if its columns
+    don't fit here, rather than overflowing the whole page. It's deliberately
+    a sibling of .demo-page-content, not nested inside it, so "Full width"
+    really means the full page width, not just that wrapper's width.
+*@
+<div class="@(_useCenteredContainer ? "demo-table-container demo-table-container-centered" : "demo-table-container demo-table-container-full")">
+    <ColonnadeGrid TItem="Issue"
+                     Items="EffectiveItems"
+                     DataProvider="EffectiveProvider"
+                     RowKey="@(i => i.Id.ToString())"
+                     EnableRowSelection="_enableRowSelection"
+                     CompactMode="_compactMode"
+                     @bind-State="_state"
+                     @bind-SelectedKeys="_selectedKeys">
+        <Columns>
+            <GridColumn Field="(Issue x) => x.Title" Title="Title" Sortable="true" Filterable="true" />
+            <GridColumn Field="(Issue x) => x.Status" Title="Status" Groupable="true">
+                <CellTemplate Context="issue">
+                    <span class="badge badge-status-@issue.Status.ToString().ToLowerInvariant()">@issue.Status</span>
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.Priority" Title="Priority" Sortable="true" Filterable="true" Groupable="true">
+                <CellTemplate Context="issue">
+                    <span class="badge badge-priority-@issue.Priority.ToString().ToLowerInvariant()">@issue.Priority</span>
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.Assignee" Title="Assignee" Filterable="true">
+                <CellTemplate Context="issue">
+                    @(issue.Assignee ?? "—")
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.DueDate" Title="Due" Sortable="true" Filterable="true" Format="MMM d, yyyy" />
+        </Columns>
+    </ColonnadeGrid>
+</div>
+
+@code {
+    private readonly List<Issue> _issues = IssueData.CreateSampleIssues();
+    private SimulatedRemoteDataProvider<Issue>? _remoteProvider;
+    private bool _useRemoteProvider;
+    private bool _useCenteredContainer = true;
+    private bool _enableRowSelection = true;
+    private bool _compactMode;
+    private GridState? _state;
+    private IReadOnlySet<string> _selectedKeys = new HashSet<string>();
+
+    private IEnumerable<Issue>? EffectiveItems => _useRemoteProvider ? null : _issues;
+
+    private IDataProvider<Issue>? EffectiveProvider => _useRemoteProvider ? _remoteProvider : null;
+
+    private void SetSource(bool useRemote)
+    {
+        _useRemoteProvider = useRemote;
+        _remoteProvider ??= new SimulatedRemoteDataProvider<Issue>(_issues);
+    }
+
+    private void SetLayout(bool centered) => _useCenteredContainer = centered;
+
+    private void SetRowSelectionEnabled(bool enabled)
+    {
+        _enableRowSelection = enabled;
+        if (!enabled)
+        {
+            // Selection is tracked independently of EnableRowSelection (see
+            // the developer guide), so it wouldn't otherwise clear itself
+            // just because the checkbox column disappears — leaving the
+            // "Selected: N" count stuck at a stale value would be confusing.
+            _selectedKeys = new HashSet<string>();
+        }
+    }
+
+    private void SetCompactMode(bool compact) => _compactMode = compact;
+}

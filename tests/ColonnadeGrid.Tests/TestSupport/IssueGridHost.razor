@@ -1,0 +1,38 @@
+@using ColonnadeGrid
+@using ColonnadeGrid.Abstractions
+@using ColonnadeGrid.Models
+@namespace ColonnadeGrid.Tests.TestSupport
+
+@*
+    A fixed 4-column table configuration reused across bUnit tests, so
+    individual test methods only need to vary Items/DataProvider/State/
+    SelectedKeys rather than re-declaring column markup each time.
+*@
+
+<ColonnadeGrid TItem="Issue"
+                Items="Items"
+                DataProvider="DataProvider"
+                EnableRowSelection="EnableRowSelection"
+                RowKey="RowKey"
+                State="State"
+                StateChanged="StateChanged"
+                SelectedKeys="SelectedKeys"
+                SelectedKeysChanged="SelectedKeysChanged">
+    <Columns>
+        <GridColumn Field="(Issue x) => x.Title" Title="Title" Sortable="true" Filterable="true" />
+        <GridColumn Field="(Issue x) => x.Status" Title="Status" Groupable="true" />
+        <GridColumn Field="(Issue x) => x.Priority" Title="Priority" Sortable="true" Filterable="true" />
+        <GridColumn Field="(Issue x) => x.Assignee" Title="Assignee" Filterable="true" />
+    </Columns>
+</ColonnadeGrid>
+
+@code {
+    [Parameter] public IEnumerable<Issue>? Items { get; set; }
+    [Parameter] public IDataProvider<Issue>? DataProvider { get; set; }
+    [Parameter] public bool EnableRowSelection { get; set; }
+    [Parameter] public Func<Issue, string>? RowKey { get; set; }
+    [Parameter] public GridState? State { get; set; }
+    [Parameter] public EventCallback<GridState> StateChanged { get; set; }
+    [Parameter] public IReadOnlySet<string>? SelectedKeys { get; set; }
+    [Parameter] public EventCallback<IReadOnlySet<string>> SelectedKeysChanged { get; set; }
+}

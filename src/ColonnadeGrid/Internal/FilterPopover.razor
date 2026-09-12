@@ -1,0 +1,85 @@
+@namespace ColonnadeGrid.Internal
+@typeparam TItem
+@using ColonnadeGrid.Abstractions
+@using ColonnadeGrid.Models
+
+<div class="cg-filter-popover" @onclick:stopPropagation="true">
+    <select class="cg-filter-operator" value="@_operator" @onchange="OnOperatorChanged">
+        @foreach (var op in Operators)
+        {
+            <option value="@op">@FormatOperator(op)</option>
+        }
+    </select>
+    @if (_operator is not (FilterOperator.IsEmpty or FilterOperator.IsNotEmpty))
+    {
+        <input type="text" class="cg-filter-value" @bind="_value" @bind:event="oninput" placeholder="Value" />
+    }
+    <div class="cg-filter-popover-actions">
+        <button type="button" @onclick="ApplyAsync">Apply</button>
+        <button type="button" @onclick="ClearAsync">Clear</button>
+    </div>
+</div>
+
+@code {
+    private static readonly FilterOperator[] Operators = Enum.GetValues<FilterOperator>();
+
+    [Parameter, EditorRequired]
+    public GridColumnBase<TItem> Column { get; set; } = default!;
+
+    [Parameter]
+    public FilterDescriptor? CurrentFilter { get; set; }
+
+    [Parameter]
+    public EventCallback<FilterDescriptor> OnApply { get; set; }
+
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private FilterOperator _operator = FilterOperator.Contains;
+    private string? _value;
+
+    protected override void OnInitialized()
+    {
+        if (CurrentFilter is not null)
+        {
+            _operator = CurrentFilter.Operator;
+            _value = CurrentFilter.Value;
+        }
+    }
+
+    private void OnOperatorChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<FilterOperator>(e.Value as string, out var parsed))
+        {
+            _operator = parsed;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        await OnApply.InvokeAsync(new FilterDescriptor(Column.PropertyName, _operator, _value));
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        await OnClear.InvokeAsync();
+        await OnClose.InvokeAsync();
+    }
+
+    private static string FormatOperator(FilterOperator op) => op switch
+    {
+        FilterOperator.Contains => "Contains",
+        FilterOperator.Equals => "Equals",
+        FilterOperator.NotEquals => "Not equals",
+        FilterOperator.StartsWith => "Starts with",
+        FilterOperator.GreaterThan => "Greater than",
+        FilterOperator.LessThan => "Less than",
+        FilterOperator.IsEmpty => "Is empty",
+        FilterOperator.IsNotEmpty => "Is not empty",
+        _ => op.ToString()
+    };
+}

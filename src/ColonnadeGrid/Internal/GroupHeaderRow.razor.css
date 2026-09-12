@@ -1,0 +1,45 @@
+/* Repeats the base .cg-row grid rule (see GridRow.razor.css/
+   ColonnadeGrid.razor.css for why) so this row is exactly as wide as a
+   data row, including its width:max-content overflow behavior. */
+.cg-row {
+    display: grid;
+    align-items: center;
+    min-height: var(--cg-row-height);
+    /* No width:max-content here — see ColonnadeGrid.razor.css's .cg-row
+       for why: it caused each row's 1fr columns to size from that row's
+       own content, misaligning row to row. Default width (100% of
+       .cg-grid) keeps every row's tracks identical. */
+    border-bottom: 1px solid var(--cg-border-color);
+}
+
+.cg-group-header-row {
+    background: var(--cg-header-bg);
+    cursor: pointer;
+}
+
+.cg-group-header-cell {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: var(--cg-group-header-padding-y) var(--cg-cell-padding-x);
+}
+
+.cg-group-chevron {
+    display: inline-flex;
+    color: var(--cg-muted-text-color);
+}
+
+.cg-group-title {
+    font-weight: 600;
+}
+
+.cg-group-count {
+    color: var(--cg-muted-text-color);
+    background: var(--cg-row-hover-bg);
+    border: 1px solid var(--cg-border-color);
+    border-radius: 999px;
+    padding: 0 8px;
+    font-size: 12px;
+    line-height: 18px;
+}

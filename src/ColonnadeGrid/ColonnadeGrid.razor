@@ -1,0 +1,197 @@
+@namespace ColonnadeGrid
+@typeparam TItem
+@attribute [CascadingTypeParameter(nameof(TItem))]
+@implements IAsyncDisposable
+@using BlazorOcticons.Octicons
+@using ColonnadeGrid.Abstractions
+@using ColonnadeGrid.Internal
+@using ColonnadeGrid.Models
+
+<CascadingValue Value="_context" IsFixed="true">
+    @{ _context.ClearColumns(); }
+    @Columns
+</CascadingValue>
+
+<div class="cg-root @(CompactMode ? "cg-root-compact" : "")">
+    @if (_openColumnMenuId is not null || _columnsMenuOpen)
+    {
+        @* A full-viewport, invisible backdrop: clicking anywhere the open
+           dropdown itself doesn't cover closes it. See .cg-dropdown-backdrop
+           and .cg-header-row's z-index comments in ColonnadeGrid.razor.css
+           for the (non-obvious) stacking-context reasoning that keeps this
+           backdrop from swallowing clicks meant for the dropdown itself. *@
+        <div class="cg-dropdown-backdrop" @onclick="CloseAllMenus"></div>
+    }
+    @if (_state is null)
+    {
+        <div class="cg-loading">Loading…</div>
+    }
+    else
+    {
+        <div class="cg-grid" role="table" @ref="_gridRef">
+            @* Zero-height marker the sticky-header shadow watches via
+               IntersectionObserver (see initStickyHeaderShadow in
+               colonnadeGrid.js): it scrolls out of view at exactly the
+               scroll position where the header below it starts sticking,
+               which is the one reliable way to detect that transition —
+               CSS alone has no "am I currently stuck" selector. *@
+            <div class="cg-sticky-sentinel" @ref="_stickySentinelRef"></div>
+            <div class="cg-row cg-header-row @(EnableStickyHeader ? "cg-header-row-sticky" : "")"
+                 @ref="_headerRowRef"
+                 role="row" style="@BuildGridTemplateColumns()">
+                @if (EnableRowSelection)
+                {
+                    var (allSelected, someSelected) = GetHeaderCheckboxState();
+                    <div class="cg-cell cg-select-cell" role="columnheader">
+                        <input type="checkbox"
+                               data-select-all
+                               data-indeterminate="@(someSelected ? "true" : "false")"
+                               checked="@allSelected"
+                               @onchange="ToggleSelectAllVisibleAsync" />
+                    </div>
+                }
+                @foreach (var column in VisibleColumns)
+                {
+                    <div class="cg-cell cg-header-cell @(IsColumnActive(column) ? "cg-header-cell-active" : "")"
+                         role="columnheader"
+                         data-column-id="@column.Id"
+                         aria-sort="@GetAriaSort(column)">
+                        <span class="cg-header-text">
+                            @if (column.HeaderTemplate is not null)
+                            {
+                                @column.HeaderTemplate
+                            }
+                            else
+                            {
+                                @column.Title
+                            }
+                        </span>
+                        @if (GetActiveSortDirection(column) is { } sortDirection)
+                        {
+                            <button type="button" class="cg-header-icon-button cg-sort-indicator" title="Toggle sort direction"
+                                    aria-label="Toggle sort direction"
+                                    @onclick="() => ToggleSortDirectionAsync(column)"
+                                    @onclick:stopPropagation="true">
+                                @if (sortDirection == SortDirection.Ascending)
+                                {
+                                    <SortAsc16 Color="currentColor" />
+                                }
+                                else
+                                {
+                                    <SortDesc16 Color="currentColor" />
+                                }
+                            </button>
+                        }
+                        @if (GetActiveFilter(column) is not null)
+                        {
+                            <button type="button" class="cg-header-icon-button cg-filter-indicator" title="Filtered — click to edit"
+                                    aria-label="Filtered — click to edit"
+                                    @onclick="() => OpenColumnMenuToFilter(column.Id)"
+                                    @onclick:stopPropagation="true">
+                                <Filter16 Color="currentColor" />
+                            </button>
+                        }
+                        @if (_state!.GroupByPropertyName == column.PropertyName)
+                        {
+                            <span class="cg-group-indicator" title="Grouped by this column">
+                                <Rows16 Color="currentColor" />
+                            </span>
+                        }
+                        <span class="cg-column-menu-anchor">
+                            <button type="button"
+                                    class="cg-header-icon-button cg-column-menu-button @(_openColumnMenuId == column.Id ? "cg-header-icon-button-active" : "")"
+                                    title="@column.Title column options"
+                                    aria-label="@column.Title column options"
+                                    @onclick="() => ToggleColumnMenu(column.Id)"
+                                    @onclick:stopPropagation="true">
+                                <KebabHorizontal16 Color="currentColor" />
+                            </button>
+                            @if (_openColumnMenuId == column.Id)
+                            {
+                                <ColumnMenu TItem="TItem"
+                                            Column="column"
+                                            State="_state"
+                                            CurrentFilter="GetActiveFilter(column)"
+                                            CanHide="VisibleColumns.Count > 1"
+                                            OpenToFilterView="_openColumnMenuOpensToFilterView"
+                                            OnSortChanged="OnSortChangedAsync"
+                                            OnFilterApplied="OnFilterAppliedAsync"
+                                            OnFilterCleared="() => OnFilterClearedAsync(column.PropertyName)"
+                                            OnGroupToggled="OnGroupByToggledAsync"
+                                            OnHide="OnHideColumnAsync"
+                                            OnMove="OnMoveColumnAsync"
+                                            OnClose="() => _openColumnMenuId = null" />
+                            }
+                        </span>
+                        <span class="cg-resize-handle" data-resize-handle @onclick:stopPropagation="true"></span>
+                    </div>
+                }
+                <div class="cg-cell cg-add-column-cell" role="columnheader">
+                    <span class="cg-columns-menu-anchor">
+                        <button type="button"
+                                class="cg-header-icon-button cg-columns-button @(_columnsMenuOpen ? "cg-header-icon-button-active" : "")"
+                                title="Add or remove columns"
+                                aria-label="Add or remove columns" @onclick="ToggleColumnsMenu">
+                            <Plus16 Color="currentColor" />
+                        </button>
+                        @if (_columnsMenuOpen && _state is not null)
+                        {
+                            <ColumnsMenu TItem="TItem"
+                                         Columns="_context.Columns"
+                                         State="_state"
+                                         OnVisibilityChanged="OnColumnVisibilityChangedAsync" />
+                        }
+                    </span>
+                </div>
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="cg-status-row">Loading…</div>
+            }
+            else if (_data is null || _data.Items.Count == 0)
+            {
+                <div class="cg-status-row">No rows to display.</div>
+            }
+            else if (_data.Groups is { Count: > 0 } groups)
+            {
+                @foreach (var group in groups)
+                {
+                    var collapsed = _state!.IsGroupCollapsed(group.Key);
+                    <GroupHeaderRow DisplayText="@group.DisplayText"
+                                    Count="group.Count"
+                                    Collapsed="collapsed"
+                                    OnToggle="() => OnToggleGroupAsync(group.Key)"
+                                    GridTemplateStyle="@BuildGridTemplateColumns()" />
+                    @if (!collapsed)
+                    {
+                        @for (var i = group.StartIndex; i < group.StartIndex + group.Count; i++)
+                        {
+                            var item = _data.Items[i];
+                            <GridRow TItem="TItem"
+                                     Item="item"
+                                     Columns="VisibleColumns"
+                                     EnableSelection="EnableRowSelection"
+                                     Selected="IsSelected(item)"
+                                     OnToggleSelect="() => ToggleRowSelectionAsync(item)"
+                                     GridTemplateStyle="@BuildGridTemplateColumns()" />
+                        }
+                    }
+                }
+            }
+            else
+            {
+                @foreach (var item in _data.Items)
+                {
+                    <GridRow TItem="TItem"
+                             Item="item"
+                             Columns="VisibleColumns"
+                             EnableSelection="EnableRowSelection"
+                             Selected="IsSelected(item)"
+                             OnToggleSelect="() => ToggleRowSelectionAsync(item)"
+                             GridTemplateStyle="@BuildGridTemplateColumns()" />
+                }
+            }
+        </div>
+    }
+</div>

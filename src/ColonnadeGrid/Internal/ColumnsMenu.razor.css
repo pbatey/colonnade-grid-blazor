@@ -1,0 +1,58 @@
+.cg-columns-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 10;
+    width: 240px;
+    /* Deliberately --cg-popover-* (fixed light) — see .cg-root's comment
+       in ColonnadeGrid.razor.css. */
+    background: var(--cg-popover-bg);
+    color: var(--cg-popover-text-color);
+    /* This menu is anchored inside the header row's trailing cell, whose
+       font-size (12px) is smaller than the table body's — this restores the
+       normal 14px for the menu itself. */
+    font-size: var(--cg-font-size);
+    /* Same reasoning, for line-height: the header cell's own line-height is
+       tied to --cg-row-height (shrunk by CompactMode) — see ColumnMenu's
+       identical comment in ColumnMenu.razor.css for the full explanation of
+       why this panel would otherwise inherit it despite being visually
+       repositioned via position:fixed, and for why this is pinned to the
+       dedicated --cg-popover-line-height token rather than `normal` (which
+       would make items noticeably *more* cramped than intended, not just
+       "not shrunk by CompactMode"). */
+    line-height: var(--cg-popover-line-height);
+    border: 1px solid var(--cg-popover-border-color);
+    border-radius: var(--cg-radius);
+    box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+}
+
+.cg-columns-menu-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.cg-columns-menu-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: -5px;
+    margin-top: -5px;
+}
+
+.cg-columns-menu-item:hover {
+    background: var(--cg-popover-hover-bg);
+}
+
+.cg-columns-menu-item label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 2px 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}

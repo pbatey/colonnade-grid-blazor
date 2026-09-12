@@ -1,0 +1,13 @@
+@namespace ColonnadeGrid
+@typeparam TItem
+@typeparam TProp
+@*
+    Declares a column of a ColonnadeGrid<TItem>. Renders no markup of its
+    own — it registers a column definition with the table's cascaded
+    GridContext<TItem>, and the table renders headers/cells from that
+    registered list. This file exists (rather than a plain C# class) so the
+    Razor compiler can infer TItem (via the table's
+    [CascadingTypeParameter]) and TProp (from the Field expression's return
+    type) at each <GridColumn> call site without either being spelled out
+    explicitly. See GridColumn.razor.cs for parameters and registration logic.
+*@
