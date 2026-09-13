@@ -1,0 +1,58 @@
+/* Repeats the base .cg-row/.cg-cell rules — see GridRow.razor.css for why. */
+.cg-row {
+    display: grid;
+    min-height: var(--cg-row-height);
+    border-bottom: 1px solid var(--cg-border-color);
+}
+
+.cg-cell {
+    padding: 0 var(--cg-cell-padding-x);
+    overflow: hidden;
+    white-space: nowrap;
+    line-height: var(--cg-row-height);
+    border-right: 1px solid var(--cg-border-color);
+}
+
+.cg-select-cell {
+    padding: 0;
+}
+
+/* Invisible for the first 150ms, so a fast load never flashes placeholders.
+   The row still takes its full height from the start, so nothing jumps
+   either way. */
+.cg-skeleton-row {
+    opacity: 0;
+    animation: cg-skeleton-appear 0s linear 150ms forwards;
+}
+
+@keyframes cg-skeleton-appear {
+    to {
+        opacity: 1;
+    }
+}
+
+.cg-skeleton-bar {
+    display: inline-block;
+    vertical-align: middle;
+    height: 0.75em;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--cg-row-hover-bg) 0%, var(--cg-border-color) 50%, var(--cg-row-hover-bg) 100%);
+    background-size: 200% 100%;
+    animation: cg-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes cg-skeleton-shimmer {
+    from {
+        background-position: 100% 0;
+    }
+
+    to {
+        background-position: -100% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cg-skeleton-bar {
+        animation: none;
+    }
+}

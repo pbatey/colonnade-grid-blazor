@@ -28,5 +28,27 @@ public enum FilterOperator
     IsEmpty,
 
     /// <summary>The property value is neither null nor an empty string.</summary>
-    IsNotEmpty
+    IsNotEmpty,
+
+    /// <summary>
+    /// The property value equals one of <see cref="FilterDescriptor.Values"/>.
+    /// Used by the value-list filter editor (enums, booleans, and columns set to
+    /// <see cref="FilterKind.Values"/>).
+    /// </summary>
+    In,
+
+    /// <summary>
+    /// The property value is at least <see cref="FilterDescriptor.Value"/> and at
+    /// most <see cref="FilterDescriptor.ValueTo"/>; either may be <c>null</c> for an
+    /// open end. Used by the number, date, and duration range editors.
+    /// </summary>
+    Between,
+
+    /// <summary>
+    /// A date property value falls within the period in
+    /// <see cref="FilterDescriptor.Value"/> (e.g. <c>"P30D"</c>, see
+    /// <see cref="RelativeDatePeriod"/>) before now, up to now. "Now" is taken when
+    /// the data source runs the query, so a saved "last 30 days" filter stays relative.
+    /// </summary>
+    WithinLast
 }

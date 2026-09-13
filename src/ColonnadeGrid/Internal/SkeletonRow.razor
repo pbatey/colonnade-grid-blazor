@@ -1,0 +1,33 @@
+@namespace ColonnadeGrid.Internal
+
+@*
+    A placeholder row shown while a group's rows load. It takes the same
+    grid-template-columns as a real row, so the table's height and column
+    layout don't shift when the rows arrive.
+*@
+<div class="cg-row cg-skeleton-row" role="row" aria-busy="true" style="@GridTemplateStyle">
+    @if (EnableSelection)
+    {
+        <div class="cg-cell cg-select-cell" role="gridcell"></div>
+    }
+    @for (var i = 0; i < ColumnCount; i++)
+    {
+        <div class="cg-cell" role="gridcell">
+            <span class="cg-skeleton-bar" style="width: @BarWidths[i % BarWidths.Length]%"></span>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Varied bar widths (percent of the cell), so a column of placeholders doesn't read as a solid block.</summary>
+    private static readonly int[] BarWidths = [70, 45, 60, 35, 55];
+
+    [Parameter]
+    public int ColumnCount { get; set; }
+
+    [Parameter]
+    public bool EnableSelection { get; set; }
+
+    [Parameter]
+    public string? GridTemplateStyle { get; set; }
+}

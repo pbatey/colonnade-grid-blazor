@@ -1,5 +1,5 @@
 // Minimal JS interop for ColonnadeGrid. Deliberately small and narrow, per
-// the developer guide's architecture notes: everything else (sorting,
+// docs/architecture.md: everything else (sorting,
 // filtering, grouping, column visibility/order) is pure Blazor/C#.
 //
 // Column resize: pointer-drag tracking happens entirely here in JS so

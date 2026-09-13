@@ -1,0 +1,31 @@
+@using ColonnadeGrid
+@using ColonnadeGrid.Abstractions
+@using ColonnadeGrid.Models
+@namespace ColonnadeGrid.Tests.TestSupport
+
+@* A grid with one filterable column of each filter kind, for the filter editor tests. *@
+
+<ColonnadeGrid TItem="Ticket"
+               Items="Items"
+               DataProvider="DataProvider"
+               RowKey="@(t => t.Name)"
+               State="State"
+               StateChanged="StateChanged">
+    <Columns>
+        <GridColumn Field="(Ticket x) => x.Name" Title="Name" Filterable="true" />
+        <GridColumn Field="(Ticket x) => x.Type" Title="Type" Filterable="true" />
+        <GridColumn Field="(Ticket x) => x.Estimate" Title="Estimate" Filterable="true" />
+        <GridColumn Field="(Ticket x) => x.Opened" Title="Opened" Filterable="true" />
+        <GridColumn Field="(Ticket x) => x.Spent" Title="Spent" Filterable="true" />
+        <GridColumn Field="(Ticket x) => x.Team" Title="Team" Filterable="true" FilterKind="FilterKind.Values" />
+    </Columns>
+</ColonnadeGrid>
+
+@code {
+    public static readonly string[] ColumnIds = ["Name", "Type", "Estimate", "Opened", "Spent", "Team"];
+
+    [Parameter] public IEnumerable<Ticket>? Items { get; set; }
+    [Parameter] public IDataProvider<Ticket>? DataProvider { get; set; }
+    [Parameter] public GridState? State { get; set; }
+    [Parameter] public EventCallback<GridState> StateChanged { get; set; }
+}

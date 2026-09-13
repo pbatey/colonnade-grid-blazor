@@ -41,6 +41,11 @@
     cursor: default;
 }
 
+/* The value, range, and date filter editors. */
+.cg-column-menu-wide {
+    width: 300px;
+}
+
 .cg-column-menu-item {
     display: flex;
     align-items: center;

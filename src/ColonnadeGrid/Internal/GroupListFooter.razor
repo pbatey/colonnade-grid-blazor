@@ -1,0 +1,68 @@
+@namespace ColonnadeGrid.Internal
+
+@*
+    The footer shown instead of GridPager when groups are paged separately:
+    how many groups and rows there are, and a button to list the next batch
+    of groups.
+*@
+<div class="cg-group-footer">
+    <span class="cg-group-footer-summary">@SummaryText</span>
+    @if (Error is not null)
+    {
+        <span class="cg-group-footer-error" role="alert">Couldn't load more groups: @Error</span>
+    }
+    @if (RemainingGroupCount > 0)
+    {
+        <button type="button" class="cg-group-footer-more" disabled="@Loading" @onclick="OnShowMore">
+            @ButtonText
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int LoadedGroupCount { get; set; }
+
+    [Parameter]
+    public int TotalGroupCount { get; set; }
+
+    [Parameter]
+    public int TotalCount { get; set; }
+
+    [Parameter]
+    public int BatchSize { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    /// <summary>Why the last "Show more" failed, or <c>null</c>.</summary>
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public EventCallback OnShowMore { get; set; }
+
+    private int RemainingGroupCount => Math.Max(0, TotalGroupCount - LoadedGroupCount);
+
+    private string SummaryText =>
+        RemainingGroupCount > 0
+            ? $"{LoadedGroupCount:N0} of {Plural(TotalGroupCount, "group")} · {Plural(TotalCount, "row")}"
+            : $"{Plural(TotalGroupCount, "group")} · {Plural(TotalCount, "row")}";
+
+    private string ButtonText
+    {
+        get
+        {
+            if (Loading)
+            {
+                return "Loading groups…";
+            }
+
+            var next = Math.Min(BatchSize, RemainingGroupCount);
+            var text = $"Show {Plural(next, "more group")}";
+            return RemainingGroupCount > next ? $"{text} ({RemainingGroupCount:N0} remaining)" : text;
+        }
+    }
+
+    private static string Plural(int count, string noun) => $"{count:N0} {noun}{(count == 1 ? "" : "s")}";
+}

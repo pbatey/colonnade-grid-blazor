@@ -32,6 +32,8 @@ internal sealed class TypedGridColumn<TItem, TProp> : GridColumnBase<TItem>
         Title = title ?? propertyName;
     }
 
+    public override Type PropertyType => typeof(TProp);
+
     public override object? GetCellValue(TItem item) => _accessor(item);
 
     public override string GetDisplayText(TItem item)

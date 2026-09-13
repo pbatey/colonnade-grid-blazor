@@ -17,7 +17,16 @@
                 State="State"
                 StateChanged="StateChanged"
                 SelectedKeys="SelectedKeys"
-                SelectedKeysChanged="SelectedKeysChanged">
+                SelectedKeysChanged="SelectedKeysChanged"
+                EnablePaging="EnablePaging"
+                PageSize="PageSize"
+                PageSizeChanged="PageSizeChanged"
+                PageIndex="PageIndex"
+                PageIndexChanged="PageIndexChanged"
+                PageSizeOptions="PageSizeOptions"
+                GroupPageSize="GroupPageSize"
+                GroupRowBudget="GroupRowBudget"
+                GroupsPerLoad="GroupsPerLoad">
     <Columns>
         <GridColumn Field="(Issue x) => x.Title" Title="Title" Sortable="true" Filterable="true" />
         <GridColumn Field="(Issue x) => x.Status" Title="Status" Groupable="true" />
@@ -35,4 +44,13 @@
     [Parameter] public EventCallback<GridState> StateChanged { get; set; }
     [Parameter] public IReadOnlySet<string>? SelectedKeys { get; set; }
     [Parameter] public EventCallback<IReadOnlySet<string>> SelectedKeysChanged { get; set; }
+    [Parameter] public bool EnablePaging { get; set; }
+    [Parameter] public int PageSize { get; set; } = global::ColonnadeGrid.ColonnadeGrid<Issue>.DefaultPageSize;
+    [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
+    [Parameter] public int PageIndex { get; set; }
+    [Parameter] public EventCallback<int> PageIndexChanged { get; set; }
+    [Parameter] public IReadOnlyList<int>? PageSizeOptions { get; set; } = global::ColonnadeGrid.ColonnadeGrid<Issue>.DefaultPageSizeOptions;
+    [Parameter] public int GroupPageSize { get; set; } = global::ColonnadeGrid.ColonnadeGrid<Issue>.DefaultGroupPageSize;
+    [Parameter] public int? GroupRowBudget { get; set; }
+    [Parameter] public int GroupsPerLoad { get; set; } = global::ColonnadeGrid.ColonnadeGrid<Issue>.DefaultGroupsPerLoad;
 }

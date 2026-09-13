@@ -16,6 +16,10 @@ obj/
 .vscode/*
 !.vscode/extensions.json
 
+## Python
+__pycache__/
+.venv/
+
 ## macOS
 .DS_Store
 

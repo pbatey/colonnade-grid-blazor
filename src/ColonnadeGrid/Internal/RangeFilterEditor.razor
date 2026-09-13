@@ -1,0 +1,213 @@
+@namespace ColonnadeGrid.Internal
+@implements IFilterEditor
+@using System.Globalization
+@using ColonnadeGrid.Models
+
+@*
+    A from–to range for numbers and durations, producing a Between filter.
+    With stats, a two-handle slider spans the data's min and max; the From/To
+    inputs take exact values either way. Durations are handled as seconds.
+    A bound at (or past) the data's limit is left open, so the filter doesn't
+    exclude values added beyond today's limits.
+*@
+<div class="cg-range-editor">
+    @if (DataMin is { } min && DataMax is { } max && max > min)
+    {
+        var from = Math.Clamp(_from ?? min, min, max);
+        var to = Math.Clamp(_to ?? max, min, max);
+        <div class="cg-range-slider">
+            <div class="cg-range-track"></div>
+            <div class="cg-range-fill" style="@FillStyle(from, to, min, max)"></div>
+            <input type="range" class="cg-range-thumb" aria-label="Minimum"
+                   min="@Raw(min)" max="@Raw(max)" step="@SliderStep" value="@Raw(from)"
+                   @oninput="OnFromSliderAsync" />
+            <input type="range" class="cg-range-thumb" aria-label="Maximum"
+                   min="@Raw(min)" max="@Raw(max)" step="@SliderStep" value="@Raw(to)"
+                   @oninput="OnToSliderAsync" />
+        </div>
+        <div class="cg-range-limits">
+            <span>@Display(min)</span>
+            <span>@Display(max)</span>
+        </div>
+    }
+    <div class="cg-range-inputs">
+        @if (Kind == FilterKind.Duration)
+        {
+            <DurationInput Label="From" Seconds="_from" LongUnits="LongUnits" SecondsChanged="OnFromInputAsync" />
+            <DurationInput Label="To" Seconds="_to" LongUnits="LongUnits" SecondsChanged="OnToInputAsync" />
+        }
+        else
+        {
+            <label class="cg-range-field">
+                <span>From</span>
+                <input type="number" class="cg-range-number" aria-label="From" step="@InputStep"
+                       placeholder="@(DataMin is { } low ? Display(low) : "")" value="@Raw(_from)"
+                       @onchange="e => OnFromInputAsync(ParseNumber(e.Value))" />
+            </label>
+            <label class="cg-range-field">
+                <span>To</span>
+                <input type="number" class="cg-range-number" aria-label="To" step="@InputStep"
+                       placeholder="@(DataMax is { } high ? Display(high) : "")" value="@Raw(_to)"
+                       @onchange="e => OnToInputAsync(ParseNumber(e.Value))" />
+            </label>
+        }
+    </div>
+    @if (ShowEmptyOption)
+    {
+        <label class="cg-filter-check">
+            <input type="checkbox" checked="@_includeEmpty" @onchange="OnIncludeEmptyAsync" />
+            <span>Include empty</span>
+            @if (Stats is not null)
+            {
+                <span class="cg-filter-count">@Stats.EmptyCount.ToString("N0")</span>
+            }
+        </label>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string PropertyName { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public Type PropertyType { get; set; } = typeof(object);
+
+    /// <summary><see cref="FilterKind.Number"/> or <see cref="FilterKind.Duration"/>.</summary>
+    [Parameter]
+    public FilterKind Kind { get; set; } = FilterKind.Number;
+
+    [Parameter]
+    public FilterDescriptor? CurrentFilter { get; set; }
+
+    [Parameter]
+    public ColumnStats? Stats { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    // Numbers as-is; durations in seconds.
+    private double? _from;
+    private double? _to;
+    private bool _includeEmpty;
+
+    private Type UnderlyingType => Nullable.GetUnderlyingType(PropertyType) ?? PropertyType;
+
+    private bool IsInteger => Kind == FilterKind.Number && Type.GetTypeCode(UnderlyingType) is
+        TypeCode.SByte or TypeCode.Byte or TypeCode.Int16 or TypeCode.UInt16 or
+        TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64;
+
+    private double? DataMin => Parse(Stats?.Min);
+
+    private double? DataMax => Parse(Stats?.Max);
+
+    /// <summary>Durations reaching a day or more are entered in months, weeks, and days; shorter ones in hours and minutes.</summary>
+    private bool LongUnits => (DataMax ?? Math.Max(_from ?? 0, _to ?? 0)) >= DurationText.SecondsPerDay;
+
+    private string SliderStep => Kind == FilterKind.Duration
+        ? (LongUnits ? DurationText.SecondsPerDay : 60).ToString(CultureInfo.InvariantCulture)
+        : InputStep;
+
+    private string InputStep => IsInteger ? "1" : "any";
+
+    private bool ShowEmptyOption =>
+        Nullable.GetUnderlyingType(PropertyType) is not null && (Stats is null || Stats.EmptyCount > 0);
+
+    public bool CanApply => !(_from is { } from && _to is { } to && from > to);
+
+    protected override void OnInitialized()
+    {
+        if (CurrentFilter is { Operator: FilterOperator.Between } filter)
+        {
+            _from = Parse(filter.Value);
+            _to = Parse(filter.ValueTo);
+            _includeEmpty = filter.IncludeEmpty;
+        }
+    }
+
+    public FilterDescriptor? BuildFilter()
+    {
+        var from = _from is { } f && DataMin is { } min && f <= min ? null : _from;
+        var to = _to is { } t && DataMax is { } max && t >= max ? null : _to;
+        if (from is null && to is null)
+        {
+            return null;
+        }
+
+        return new FilterDescriptor(
+            PropertyName,
+            FilterOperator.Between,
+            from is { } low ? FormatValue(low) : null,
+            to is { } high ? FormatValue(high) : null,
+            IncludeEmpty: ShowEmptyOption && _includeEmpty);
+    }
+
+    private async Task OnFromSliderAsync(ChangeEventArgs e)
+    {
+        if (ParseNumber(e.Value) is { } value && DataMin is { } min && DataMax is { } max)
+        {
+            value = Math.Min(value, _to ?? max);
+            _from = value <= min ? null : value;
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    private async Task OnToSliderAsync(ChangeEventArgs e)
+    {
+        if (ParseNumber(e.Value) is { } value && DataMin is { } min && DataMax is { } max)
+        {
+            value = Math.Max(value, _from ?? min);
+            _to = value >= max ? null : value;
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    private async Task OnFromInputAsync(double? value)
+    {
+        _from = value;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task OnToInputAsync(double? value)
+    {
+        _to = value;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task OnIncludeEmptyAsync(ChangeEventArgs e)
+    {
+        _includeEmpty = e.Value is true;
+        await OnChanged.InvokeAsync();
+    }
+
+    private double? Parse(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        return Kind == FilterKind.Duration
+            ? TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var duration) ? duration.TotalSeconds : null
+            : double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : null;
+    }
+
+    private static double? ParseNumber(object? value) =>
+        double.TryParse(value?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : null;
+
+    private string FormatValue(double value) => Kind == FilterKind.Duration
+        ? TimeSpan.FromSeconds(Math.Round(value)).ToString("c", CultureInfo.InvariantCulture)
+        : IsInteger
+            ? Math.Round(value).ToString(CultureInfo.InvariantCulture)
+            : value.ToString("R", CultureInfo.InvariantCulture);
+
+    private string Display(double value) => Kind == FilterKind.Duration
+        ? DurationText.Format(TimeSpan.FromSeconds(value), LongUnits)
+        : value.ToString("#,##0.##########", CultureInfo.CurrentCulture);
+
+    private static string Raw(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+
+    private static string Raw(double? value) => value is { } v ? Raw(v) : "";
+
+    private static string FillStyle(double from, double to, double min, double max) =>
+        FormattableString.Invariant($"left: {(from - min) / (max - min) * 100:0.##}%; width: {(to - from) / (max - min) * 100:0.##}%;");
+}

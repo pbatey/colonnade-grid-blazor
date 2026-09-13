@@ -18,14 +18,15 @@ public sealed class DataResponse<TItem>
 
     /// <summary>
     /// The total number of items matching the request's filters, across all
-    /// pages (not just <see cref="Items"/>.Count). Used to drive future
-    /// pager UI; for v1's unpaged usage this typically equals <c>Items.Count</c>.
+    /// pages (not just <see cref="Items"/>.Count). The pager uses it to count
+    /// pages; for an unpaged request it equals <c>Items.Count</c>.
     /// </summary>
     public required int TotalCount { get; init; }
 
     /// <summary>
-    /// Group boundary metadata over <see cref="Items"/>, or <c>null</c> if the
-    /// request was not grouped (<see cref="DataRequest.GroupByPropertyName"/> was <c>null</c>).
+    /// Group boundary metadata over <see cref="Items"/> (only groups with items
+    /// in it), or <c>null</c> if the request was not grouped
+    /// (<see cref="DataRequest.GroupByPropertyName"/> was <c>null</c>).
     /// </summary>
     public IReadOnlyList<DataGroup>? Groups { get; init; }
 

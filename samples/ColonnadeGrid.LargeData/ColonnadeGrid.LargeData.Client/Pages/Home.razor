@@ -1,0 +1,112 @@
+@page "/"
+@using ColonnadeGrid.LargeData.Client.Services
+@using ColonnadeGrid.LargeData.Shared
+@inject HttpClient Http
+
+<PageTitle>ColonnadeGrid large data</PageTitle>
+
+<div class="page-content">
+    <h1>ColonnadeGrid: large data</h1>
+    <p>
+        Issues served from Postgres through an ASP.NET Core API. The grid's sort, filters, group-by,
+        and current page are posted to the API and run as SQL; the browser only ever holds the
+        current page. Group by a column to page each group separately: groups are listed from their
+        counts first, and only as many start expanded as fit in the page size.
+        Selection is kept across pages.
+    </p>
+
+    <div class="toolbar">
+        <label>
+            <input type="checkbox" @bind="_compactMode" />
+            Compact
+        </label>
+        @if (_lastLoad is { QueryMilliseconds: { } queryMilliseconds })
+        {
+            <span class="stats">
+                Last request: Postgres @queryMilliseconds.ToString("N0") ms ·
+                round trip @_lastLoad.RoundTripMilliseconds.ToString("N0") ms
+            </span>
+        }
+        <span class="toolbar-end">Selected: @_selectedKeys.Count.ToString("N0")</span>
+    </div>
+
+    @if (_lastLoad?.Error is { } error)
+    {
+        <div class="error" role="alert">@error</div>
+    }
+</div>
+
+@*
+    A bounded height with its own vertical scroll, so the grid's sticky header
+    and pager both stay visible while scrolling through a large page (see
+    docs/known-limitations.md for why an unbounded container
+    can't have both horizontal scroll and a sticky header).
+*@
+<div class="table-container">
+    <ColonnadeGrid TItem="Issue"
+                   DataProvider="_provider"
+                   RowKey="@(i => i.Id.ToString())"
+                   EnableRowSelection="true"
+                   CompactMode="_compactMode"
+                   EnablePaging="true"
+                   @bind-PageSize="_pageSize"
+                   PageSizeOptions="PageSizes"
+                   @bind-SelectedKeys="_selectedKeys">
+        <Columns>
+            <GridColumn Field="(Issue x) => x.Id" Title="#" Sortable="true" Filterable="true" />
+            <GridColumn Field="(Issue x) => x.Title" Title="Title" Sortable="true" Filterable="true" />
+            <GridColumn Field="(Issue x) => x.Status" Title="Status" Sortable="true" Filterable="true" Groupable="true">
+                <CellTemplate Context="issue">
+                    <span class="badge badge-status-@issue.Status.ToString().ToLowerInvariant()">@issue.Status</span>
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.Priority" Title="Priority" Sortable="true" Filterable="true" Groupable="true">
+                <CellTemplate Context="issue">
+                    <span class="badge badge-priority-@issue.Priority.ToString().ToLowerInvariant()">@issue.Priority</span>
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.Project" Title="Project" Sortable="true" Filterable="true" Groupable="true" FilterKind="FilterKind.Values" />
+            <GridColumn Field="(Issue x) => x.Assignee" Title="Assignee" Sortable="true" Filterable="true" Groupable="true" FilterKind="FilterKind.Values">
+                <CellTemplate Context="issue">
+                    @(issue.Assignee ?? "—")
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.StoryPoints" Title="Points" Sortable="true" Filterable="true" Groupable="true" />
+            <GridColumn Field="(Issue x) => x.CreatedAt" Title="Created" Sortable="true" Filterable="true" Format="yyyy-MM-dd HH:mm" />
+            <GridColumn Field="(Issue x) => x.DueDate" Title="Due" Sortable="true" Filterable="true" Format="yyyy-MM-dd" />
+            <GridColumn Field="(Issue x) => x.EstimateHours" Title="Estimate (h)" Sortable="true" Filterable="true" Format="0.##" />
+            <GridColumn Field="(Issue x) => x.TimeSpent" Title="Time spent" Sortable="true" Filterable="true">
+                <CellTemplate Context="issue">@FormatDuration(issue.TimeSpent)</CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.CycleTime" Title="Cycle time" Sortable="true" Filterable="true">
+                <CellTemplate Context="issue">@FormatDuration(issue.CycleTime)</CellTemplate>
+            </GridColumn>
+        </Columns>
+    </ColonnadeGrid>
+</div>
+
+@code {
+    // Up to 10,000 so you can see how the (non-virtualized) grid copes with big pages.
+    private static readonly IReadOnlyList<int> PageSizes = [50, 100, 500, 1_000, 5_000, 10_000];
+
+    private IssueApiProvider _provider = default!;
+    private IReadOnlySet<string> _selectedKeys = new HashSet<string>();
+    private IssueLoadResult? _lastLoad;
+    private int _pageSize = 100;
+    private bool _compactMode = true;
+
+    protected override void OnInitialized() => _provider = new IssueApiProvider(Http, OnLoaded);
+
+    private static string FormatDuration(TimeSpan? duration) => duration switch
+    {
+        null => "—",
+        { TotalDays: >= 1 } long_ => $"{(int)long_.TotalDays}d {long_.Hours}h",
+        { } short_ => $"{short_.Hours}h {short_.Minutes:00}m"
+    };
+
+    private void OnLoaded(IssueLoadResult result)
+    {
+        _lastLoad = result;
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

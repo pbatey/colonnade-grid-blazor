@@ -1,0 +1,204 @@
+@namespace ColonnadeGrid.Internal
+@implements IFilterEditor
+@using System.Globalization
+@using ColonnadeGrid.Models
+
+@*
+    Relative presets ("Last 30 days", producing a WithinLast filter that stays
+    relative when saved) or a custom date range (a Between filter covering whole
+    days). With stats, presets that wouldn't change the result are hidden: those
+    reaching back past the oldest date, or starting after the newest.
+*@
+<div class="cg-date-editor">
+    <div class="cg-date-options" role="radiogroup" aria-label="Date range">
+        @foreach (var preset in VisiblePresets)
+        {
+            <label class="cg-date-option">
+                <input type="radio" name="@_radioName" checked="@(_mode == preset.Period)"
+                       @onchange="() => SelectModeAsync(preset.Period)" />
+                <span>@preset.Label</span>
+            </label>
+        }
+        <label class="cg-date-option">
+            <input type="radio" name="@_radioName" checked="@(_mode == CustomMode)"
+                   @onchange="() => SelectModeAsync(CustomMode)" />
+            <span>Custom range</span>
+        </label>
+    </div>
+    @if (_mode == CustomMode)
+    {
+        <div class="cg-date-custom">
+            <label class="cg-date-field">
+                <span>From</span>
+                <input type="date" class="cg-date-input" aria-label="From date"
+                       min="@DateAttribute(DataMin)" max="@DateAttribute(DataMax)" value="@DateAttribute(_from)"
+                       @onchange="e => SetFromAsync(e.Value)" />
+            </label>
+            <label class="cg-date-field">
+                <span>To</span>
+                <input type="date" class="cg-date-input" aria-label="To date"
+                       min="@DateAttribute(DataMin)" max="@DateAttribute(DataMax)" value="@DateAttribute(_to)"
+                       @onchange="e => SetToAsync(e.Value)" />
+            </label>
+        </div>
+    }
+    @if (ShowEmptyOption)
+    {
+        <label class="cg-filter-check">
+            <input type="checkbox" checked="@_includeEmpty" @onchange="OnIncludeEmptyAsync" />
+            <span>Include empty</span>
+            @if (Stats is not null)
+            {
+                <span class="cg-filter-count">@Stats.EmptyCount.ToString("N0")</span>
+            }
+        </label>
+    }
+    @if (DataMin is { } oldest && DataMax is { } newest)
+    {
+        <div class="cg-filter-hint">
+            Dates from @oldest.ToString("d", CultureInfo.CurrentCulture) to @newest.ToString("d", CultureInfo.CurrentCulture)
+        </div>
+    }
+</div>
+
+@code {
+    private const string CustomMode = "custom";
+
+    private static readonly (string Period, string Label)[] Presets =
+    [
+        ("P7D", "Last 7 days"),
+        ("P30D", "Last 30 days"),
+        ("P90D", "Last 90 days"),
+        ("P6M", "Last 6 months"),
+        ("P1Y", "Last year"),
+        ("P2Y", "Last 2 years"),
+        ("P5Y", "Last 5 years"),
+    ];
+
+    [Parameter, EditorRequired]
+    public string PropertyName { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public Type PropertyType { get; set; } = typeof(object);
+
+    [Parameter]
+    public FilterDescriptor? CurrentFilter { get; set; }
+
+    [Parameter]
+    public ColumnStats? Stats { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private readonly string _radioName = $"cg-date-{Guid.NewGuid():N}";
+
+    /// <summary>A preset's period, <see cref="CustomMode"/>, or <c>null</c> when nothing is chosen.</summary>
+    private string? _mode;
+    private DateOnly? _from;
+    private DateOnly? _to;
+    private bool _includeEmpty;
+
+    private bool IsDateOnly => (Nullable.GetUnderlyingType(PropertyType) ?? PropertyType) == typeof(DateOnly);
+
+    private DateTime? DataMin => ParseDateTime(Stats?.Min);
+
+    private DateTime? DataMax => ParseDateTime(Stats?.Max);
+
+    private bool ShowEmptyOption =>
+        Nullable.GetUnderlyingType(PropertyType) is not null && (Stats is null || Stats.EmptyCount > 0);
+
+    private IEnumerable<(string Period, string Label)> VisiblePresets
+    {
+        get
+        {
+            var now = DateTime.Now;
+            foreach (var preset in Presets)
+            {
+                RelativeDatePeriod.TryGetStart(preset.Period, now, out var start);
+                var changesResult = DataMin is not { } min || DataMax is not { } max || (start > min && max >= start);
+                if (changesResult || _mode == preset.Period)
+                {
+                    yield return preset;
+                }
+            }
+        }
+    }
+
+    public bool CanApply => _mode switch
+    {
+        null => false,
+        CustomMode => (_from is not null || _to is not null) && !(_from > _to),
+        _ => true
+    };
+
+    protected override void OnInitialized()
+    {
+        switch (CurrentFilter)
+        {
+            case { Operator: FilterOperator.WithinLast } filter:
+                _mode = filter.Value;
+                _includeEmpty = filter.IncludeEmpty;
+                break;
+            case { Operator: FilterOperator.Between } filter:
+                _mode = CustomMode;
+                _from = ParseDate(filter.Value);
+                _to = ParseDate(filter.ValueTo);
+                _includeEmpty = filter.IncludeEmpty;
+                break;
+        }
+    }
+
+    public FilterDescriptor? BuildFilter() => _mode switch
+    {
+        null => null,
+        CustomMode when _from is null && _to is null => null,
+        CustomMode => new FilterDescriptor(
+            PropertyName,
+            FilterOperator.Between,
+            _from is { } from ? FormatBound(from, endOfDay: false) : null,
+            _to is { } to ? FormatBound(to, endOfDay: true) : null,
+            IncludeEmpty: ShowEmptyOption && _includeEmpty),
+        _ => new FilterDescriptor(PropertyName, FilterOperator.WithinLast, _mode, IncludeEmpty: ShowEmptyOption && _includeEmpty)
+    };
+
+    private async Task SelectModeAsync(string mode)
+    {
+        _mode = mode;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task SetFromAsync(object? value)
+    {
+        _from = ParseDate(value?.ToString());
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task SetToAsync(object? value)
+    {
+        _to = ParseDate(value?.ToString());
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task OnIncludeEmptyAsync(ChangeEventArgs e)
+    {
+        _includeEmpty = e.Value is true;
+        await OnChanged.InvokeAsync();
+    }
+
+    /// <summary>A range's start at the beginning of its day, and its end at the last instant of its day, so both days are included.</summary>
+    private string FormatBound(DateOnly date, bool endOfDay) => IsDateOnly
+        ? date.ToString("O", CultureInfo.InvariantCulture)
+        : date.ToDateTime(endOfDay ? TimeOnly.MaxValue : TimeOnly.MinValue).ToString("O", CultureInfo.InvariantCulture);
+
+    private static DateTime? ParseDateTime(string? text) =>
+        DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var value) ? value : null;
+
+    private static DateOnly? ParseDate(string? text) =>
+        ParseDateTime(text) is { } value ? DateOnly.FromDateTime(value) : null;
+
+    private static string DateAttribute(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+
+    private static string DateAttribute(DateOnly? value) =>
+        value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+}

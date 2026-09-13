@@ -1,0 +1,108 @@
+# NuGet counterpart to the npm release workflow in pbatey/query-to-mongo.
+# Publishes via NuGet.org Trusted Publishing (OIDC) — no API key secret.
+# See https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
+
+name: Release package
+on:
+  workflow_dispatch:
+    inputs:
+      release-type:
+        description: 'Release type (one of): patch, minor, major, prepatch, preminor, premajor, prerelease'
+        required: true
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  PROJECT: src/ColonnadeGrid/ColonnadeGrid.csproj
+  TEST_PROJECT: tests/ColonnadeGrid.Tests/ColonnadeGrid.Tests.csproj
+  PREID: preview
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout project repository
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Setup .NET (SDK version comes from global.json)
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Tests
+      - name: Run tests
+        run: dotnet test ${{ env.TEST_PROJECT }} --configuration Release
+
+      # Configure Git
+      - name: Git configuration
+        run: |
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "GitHub Actions"
+
+      # Bump <Version> in the csproj.
+      # The .NET SDK has no `npm version` equivalent, so the new version is
+      # computed with the same semver library npm itself uses — that keeps the
+      # release-type inputs behaving identically to the npm workflow (e.g.
+      # `patch` on 1.0.0-preview.1 releases 1.0.0, `prerelease` gives
+      # 1.0.0-preview.2).
+      - name: Bump version
+        run: |
+          set -euo pipefail
+          CURRENT=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$PROJECT")
+          if [ -z "$CURRENT" ]; then echo "::error::No <Version> found in $PROJECT"; exit 1; fi
+          NEW_VERSION=$(npx --yes semver@7 -i "$RELEASE_TYPE" "$CURRENT" --preid "$PREID")
+          echo "$CURRENT -> $NEW_VERSION"
+          sed -i "s#<Version>.*</Version>#<Version>$NEW_VERSION</Version>#" "$PROJECT"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+        env:
+          RELEASE_TYPE: ${{ github.event.inputs.release-type }}
+
+      # Commit changes
+      - name: Commit version change and create tag
+        run: |
+          git add "$PROJECT"
+          git commit -m "chore: release ${{ env.NEW_VERSION }}"
+          git tag "v${{ env.NEW_VERSION }}"
+
+      # Pack (ContinuousIntegrationBuild makes the build deterministic)
+      - name: Pack
+        run: |
+          dotnet pack "$PROJECT" --configuration Release \
+            -p:ContinuousIntegrationBuild=true \
+            --output artifacts
+
+      # Exchange the GitHub OIDC token for a short-lived NuGet API key.
+      # Valid for 1 hour, so this runs immediately before the push.
+      - name: NuGet login (OIDC -> temporary API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # Publish to nuget.org
+      - name: Publish
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" \
+            --api-key ${{ steps.login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json
+
+      # Push repository changes
+      - name: Push changes to repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin && git push --tags
+
+      # Create the GitHub release, with notes generated from commits/PRs
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.NEW_VERSION }}
+          generate_release_notes: true
+          prerelease: ${{ startsWith(github.event.inputs.release-type, 'pre') }}
+          files: artifacts/*.nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

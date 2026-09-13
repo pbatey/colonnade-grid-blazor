@@ -1,0 +1,142 @@
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #1f2328;
+}
+
+[tabindex='-1']:focus {
+    outline: none;
+}
+
+code {
+    color: #c02d76;
+}
+
+#blazor-error-ui {
+    color-scheme: light only;
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+.loading-progress {
+    position: absolute;
+    display: block;
+    width: 8rem;
+    height: 8rem;
+    inset: 20vh 0 auto 0;
+    margin: 0 auto;
+}
+
+.loading-progress circle {
+    fill: none;
+    stroke: #e0e0e0;
+    stroke-width: 0.6rem;
+    transform-origin: 50% 50%;
+    transform: rotate(-90deg);
+}
+
+.loading-progress circle:last-child {
+    stroke: #1b6ec2;
+    stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
+    transition: stroke-dasharray 0.05s ease-in-out;
+}
+
+.loading-progress-text {
+    position: absolute;
+    text-align: center;
+    font-weight: bold;
+    inset: calc(20vh + 3.25rem) 0 auto 0.2rem;
+}
+
+.loading-progress-text:after {
+    content: var(--blazor-load-percentage-text, "Loading");
+}
+
+/* ---- Large-data sample page ---- */
+
+.page-content {
+    padding: 16px 24px 0;
+}
+
+.page-content h1 {
+    margin: 0 0 8px;
+    font-size: 24px;
+}
+
+.page-content p {
+    margin: 0 0 12px;
+    max-width: 900px;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.toolbar-end {
+    margin-left: auto;
+    color: #59636e;
+}
+
+.stats {
+    color: #59636e;
+    font-variant-numeric: tabular-nums;
+}
+
+.error {
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border: 1px solid #ff818266;
+    border-radius: 6px;
+    background: #ffebe9;
+    color: #82071e;
+    font-size: 14px;
+}
+
+/* Bounded, internally scrolling box: keeps the sticky header and pager in view on long pages. */
+.table-container {
+    margin: 0 24px 24px;
+    height: calc(100vh - 180px);
+    min-height: 300px;
+    overflow: auto;
+    border: 1px solid #d1d9e0b3;
+    border-radius: 6px;
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 18px;
+    color: #fff;
+}
+
+.badge-status-todo { background: #656d76; }
+.badge-status-inprogress { background: #9a6700; }
+.badge-status-done { background: #1a7f37; }
+
+.badge-priority-low { background: #57606a; }
+.badge-priority-medium { background: #0969da; }
+.badge-priority-high { background: #bc4c00; }
+.badge-priority-urgent { background: #cf222e; }

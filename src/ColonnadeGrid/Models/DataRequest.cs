@@ -5,15 +5,16 @@ namespace ColonnadeGrid.Models;
 /// <see cref="Abstractions.IDataProvider{TItem}"/>: paging, sort, filters, and
 /// an optional single group-by column.
 /// </summary>
-/// <param name="Skip">Number of items to skip, for paging. Ignored when <see cref="GroupByPropertyName"/> is set (see remarks).</param>
+/// <param name="Skip">Number of items to skip, for paging.</param>
 /// <param name="Take">
 /// Maximum number of items to return, for paging.
 /// <para>
-/// <b>v1 limitation:</b> when <see cref="GroupByPropertyName"/> is set,
-/// <see cref="Skip"/>/<see cref="Take"/> are ignored and providers are
-/// expected to return every matching item (grouped, un-paged). ColonnadeGrid
-/// does not ship a pager/infinite-scroll UI in v1, so paging only applies to
-/// the ungrouped case. See the developer guide's "known limitations" section.
+/// A grid without <c>EnablePaging</c> always sends <c>Skip = 0</c> and
+/// <c>Take = int.MaxValue</c> (every row). With paging, it sends the current
+/// page's window, grouped or not. When grouped, page over the rows in group
+/// order, and describe only the groups that have items on the page — each
+/// clipped to its part of the page, with <see cref="DataGroup.TotalCount"/>
+/// carrying its size across all pages.
 /// </para>
 /// </param>
 /// <param name="Sort">The single active sort, or <c>null</c> for unsorted. Multi-column sort is not supported in v1.</param>

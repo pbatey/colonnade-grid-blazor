@@ -275,6 +275,67 @@ public class GridStateTests
     }
 
     [Fact]
+    public void SetGroupBy_ResetsExpandedGroupKeys()
+    {
+        var state = CreateState()
+            .SetGroupBy("A")
+            .SetGroupExpanded("todo", true);
+
+        var result = state.SetGroupBy("B");
+
+        Assert.Empty(result.ExpandedGroupKeys);
+    }
+
+    [Fact]
+    public void SetGroupExpanded_MovesKeyBetweenExpandedAndCollapsedSets()
+    {
+        var state = CreateState().SetGroupBy("A");
+
+        var expanded = state.SetGroupExpanded("todo", true);
+        Assert.Contains("todo", expanded.ExpandedGroupKeys);
+        Assert.DoesNotContain("todo", expanded.CollapsedGroupKeys);
+
+        var collapsed = expanded.SetGroupExpanded("todo", false);
+        Assert.Contains("todo", collapsed.CollapsedGroupKeys);
+        Assert.DoesNotContain("todo", collapsed.ExpandedGroupKeys);
+    }
+
+    [Fact]
+    public void SetGroupExpanded_AlreadyRecorded_ReturnsSameInstance()
+    {
+        var state = CreateState().SetGroupExpanded("todo", false);
+
+        Assert.Same(state, state.SetGroupExpanded("todo", false));
+    }
+
+    [Theory]
+    [InlineData(FilterOperator.In, null, null, false, true)]
+    [InlineData(FilterOperator.In, null, null, true, false)]
+    [InlineData(FilterOperator.Between, null, null, false, true)]
+    [InlineData(FilterOperator.Between, null, null, true, true)]
+    [InlineData(FilterOperator.Between, "1", null, false, false)]
+    [InlineData(FilterOperator.Between, null, "9", false, false)]
+    [InlineData(FilterOperator.WithinLast, null, null, false, true)]
+    [InlineData(FilterOperator.WithinLast, "P30D", null, false, false)]
+    public void SetFilter_RemovesFiltersThatWouldNotExcludeAnything(
+        FilterOperator op, string? value, string? valueTo, bool includeEmpty, bool expectCleared)
+    {
+        var state = CreateState().SetFilter(new FilterDescriptor("A", FilterOperator.Equals, "x"));
+
+        var result = state.SetFilter(new FilterDescriptor("A", op, value, valueTo, Values: [], IncludeEmpty: includeEmpty));
+
+        Assert.Equal(expectCleared, result.Filters.Count == 0);
+    }
+
+    [Fact]
+    public void SetFilter_InWithValues_IsKept()
+    {
+        var result = CreateState().SetFilter(new FilterDescriptor("A", FilterOperator.In, null, Values: ["x"]));
+
+        Assert.Single(result.Filters);
+    }
+
+    [Fact]
     public void ToggleGroupCollapsed_TogglesMembership()
     {
         var state = CreateState();

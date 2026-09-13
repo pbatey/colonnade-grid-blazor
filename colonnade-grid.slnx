@@ -2,6 +2,11 @@
   <Folder Name="/samples/">
     <Project Path="samples/ColonnadeGrid.Demo/ColonnadeGrid.Demo.csproj" />
   </Folder>
+  <Folder Name="/samples/LargeData/">
+    <Project Path="samples/ColonnadeGrid.LargeData/ColonnadeGrid.LargeData.Api/ColonnadeGrid.LargeData.Api.csproj" />
+    <Project Path="samples/ColonnadeGrid.LargeData/ColonnadeGrid.LargeData.Client/ColonnadeGrid.LargeData.Client.csproj" />
+    <Project Path="samples/ColonnadeGrid.LargeData/ColonnadeGrid.LargeData.Shared/ColonnadeGrid.LargeData.Shared.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/ColonnadeGrid/ColonnadeGrid.csproj" />
   </Folder>

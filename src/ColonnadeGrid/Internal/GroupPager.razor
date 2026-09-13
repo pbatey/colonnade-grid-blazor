@@ -1,0 +1,59 @@
+@namespace ColonnadeGrid.Internal
+@using BlazorOcticons.Octicons
+
+@*
+    The small pager row shown below an expanded group's rows when the group
+    has more than one page. Like GridPager, it only reports the requested page;
+    the grid loads it.
+*@
+<div class="cg-row cg-group-pager-row" role="row" style="@GridTemplateStyle">
+    <div class="cg-group-pager-cell" role="gridcell">
+        <nav class="cg-group-pager" aria-label="Pages of @GroupName">
+            <button type="button" class="cg-group-pager-button cg-group-pager-previous"
+                    disabled="@(PageIndex <= 0)"
+                    aria-label="Previous page"
+                    @onclick="() => OnPageRequested.InvokeAsync(PageIndex - 1)">
+                <ChevronLeft16 Color="currentColor" />
+            </button>
+            <span class="cg-group-pager-range">@RangeText</span>
+            <button type="button" class="cg-group-pager-button cg-group-pager-next"
+                    disabled="@(PageIndex >= LastPageIndex)"
+                    aria-label="Next page"
+                    @onclick="() => OnPageRequested.InvokeAsync(PageIndex + 1)">
+                <ChevronRight16 Color="currentColor" />
+            </button>
+        </nav>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int PageIndex { get; set; }
+
+    [Parameter]
+    public int PageSize { get; set; }
+
+    [Parameter]
+    public int TotalCount { get; set; }
+
+    [Parameter]
+    public string GroupName { get; set; } = "";
+
+    [Parameter]
+    public string? GridTemplateStyle { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnPageRequested { get; set; }
+
+    private int LastPageIndex => Math.Max(0, (TotalCount - 1) / PageSize);
+
+    private string RangeText
+    {
+        get
+        {
+            var first = (long)PageIndex * PageSize + 1;
+            var last = Math.Min(first + PageSize - 1, TotalCount);
+            return $"{first:N0}–{last:N0} of {TotalCount:N0}";
+        }
+    }
+}

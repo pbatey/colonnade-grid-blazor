@@ -1,0 +1,81 @@
+.cg-values-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    /* The menu pins line-height to its item spacing; a checklist needs normal text spacing. */
+    line-height: 1.4;
+}
+
+.cg-values-search {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--cg-popover-border-color);
+    border-radius: 4px;
+    padding: 4px 6px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.cg-values-toolbar {
+    display: flex;
+    gap: 12px;
+}
+
+.cg-filter-link {
+    font: inherit;
+    font-size: 12px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--cg-accent-color);
+    cursor: pointer;
+}
+
+.cg-filter-link:hover {
+    text-decoration: underline;
+}
+
+.cg-values-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.cg-values-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.cg-values-option:hover {
+    background: var(--cg-popover-hover-bg);
+}
+
+/* A value no row has, given the other columns' filters. Still selectable. */
+.cg-values-option-absent .cg-values-label {
+    color: var(--cg-popover-muted-text-color);
+}
+
+.cg-values-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cg-values-count {
+    font-size: 12px;
+    color: var(--cg-popover-muted-text-color);
+    font-variant-numeric: tabular-nums;
+}
+
+.cg-filter-hint {
+    font-size: 12px;
+    color: var(--cg-popover-muted-text-color);
+}

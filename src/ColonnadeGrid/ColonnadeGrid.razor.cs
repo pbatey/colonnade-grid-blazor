@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using ColonnadeGrid.Abstractions;
@@ -46,6 +45,45 @@ public partial class ColonnadeGrid<TItem>
     [Parameter]
     public bool CompactMode { get; set; }
 
+    /// <summary>The default for <see cref="PageSize"/>.</summary>
+    public const int DefaultPageSize = 50;
+
+    /// <summary>The default for <see cref="PageSizeOptions"/>.</summary>
+    public static IReadOnlyList<int> DefaultPageSizeOptions { get; } = [25, 50, 100];
+
+    /// <summary>
+    /// Shows a pager below the rows and loads one page at a time: requests to
+    /// the data source carry the current page's <see cref="DataRequest.Skip"/>/<see cref="DataRequest.Take"/>
+    /// instead of asking for every row. Applies to grouped views too.
+    /// </summary>
+    [Parameter]
+    public bool EnablePaging { get; set; }
+
+    /// <summary>Rows per page when <see cref="EnablePaging"/> is set; must be at least 1. Supports two-way binding via <c>@bind-PageSize</c>.</summary>
+    [Parameter]
+    public int PageSize { get; set; } = DefaultPageSize;
+
+    /// <summary>Raised when the user picks a different page size.</summary>
+    [Parameter]
+    public EventCallback<int> PageSizeChanged { get; set; }
+
+    /// <summary>
+    /// The zero-based current page when <see cref="EnablePaging"/> is set.
+    /// Supports two-way binding via <c>@bind-PageIndex</c>. The grid returns to
+    /// the first page when the sort, filters, or group-by change, and to the
+    /// last page when this one no longer exists.
+    /// </summary>
+    [Parameter]
+    public int PageIndex { get; set; }
+
+    /// <summary>Raised when the current page changes.</summary>
+    [Parameter]
+    public EventCallback<int> PageIndexChanged { get; set; }
+
+    /// <summary>The choices in the pager's "Rows per page" selector. <c>null</c> or empty hides the selector.</summary>
+    [Parameter]
+    public IReadOnlyList<int>? PageSizeOptions { get; set; } = DefaultPageSizeOptions;
+
     /// <summary>
     /// Produces a stable string key for a row, used for selection. Required
     /// (and validated) when <see cref="DataProvider"/> is set, since
@@ -67,11 +105,18 @@ public partial class ColonnadeGrid<TItem>
     private readonly GridContext<TItem> _context = new();
 
     private GridState? _state;
+    private GridState? _lastStateParameter;
+    private string? _loadError;
     private IReadOnlySet<string> _selectedKeys = new HashSet<string>();
     private IDataProvider<TItem>? _effectiveProvider;
     private IEnumerable<TItem>? _lastItems;
     private DataResponse<TItem>? _data;
     private CancellationTokenSource? _loadCts;
+    private int _pageIndex;
+    private int _pageSize = DefaultPageSize;
+    private int _lastPageIndexParameter;
+    private int _lastPageSizeParameter = DefaultPageSize;
+    private bool _lastEnablePaging;
     private bool _isLoading;
     private bool _initialized;
     private bool _columnsMenuOpen;
@@ -122,21 +167,100 @@ public partial class ColonnadeGrid<TItem>
         ValidateParameters();
 
         var providerChanged = UpdateEffectiveProvider();
-
-        if (State is not null && !ReferenceEquals(State, _state))
-        {
-            _state = State;
-        }
+        var pagingChanged = UpdatePagingFromParameters();
+        var (queryChanged, groupExpansionChanged) = UpdateStateFromParameter();
 
         if (SelectedKeys is not null && !ReferenceEquals(SelectedKeys, _selectedKeys))
         {
             _selectedKeys = SelectedKeys;
         }
 
-        if (_initialized && providerChanged)
+        var groupPagingChanged = UpdateGroupPagingFromParameters();
+
+        if (!_initialized)
+        {
+            return;
+        }
+
+        if (providerChanged || pagingChanged || groupPagingChanged || queryChanged)
         {
             await LoadDataAsync();
         }
+        else if (groupExpansionChanged && IsPerGroupPaging)
+        {
+            await LoadExpandedGroupPagesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Applies a host-driven <see cref="State"/>, e.g. a saved view restored
+    /// after the grid first loaded. Like the paging parameters, it's compared
+    /// against its own previous value, not the grid's current state: a host that
+    /// passes <c>State</c> without binding <c>StateChanged</c> keeps passing the
+    /// same instance on every re-render, and that mustn't undo the user's
+    /// changes. Returns whether the new state asks for different rows, and
+    /// whether it expands or collapses different groups.
+    /// </summary>
+    private (bool QueryChanged, bool GroupExpansionChanged) UpdateStateFromParameter()
+    {
+        if (State is null || ReferenceEquals(State, _lastStateParameter))
+        {
+            return (false, false);
+        }
+
+        _lastStateParameter = State;
+        if (ReferenceEquals(State, _state))
+        {
+            return (false, false);
+        }
+
+        var previous = _state;
+        _state = State;
+        return previous is null
+            ? (false, false)
+            : (!previous.HasSameQueryAs(State), !previous.HasSameGroupExpansionAs(State));
+    }
+
+    /// <summary>
+    /// Applies host-driven changes to <see cref="EnablePaging"/>, <see cref="PageSize"/>,
+    /// and <see cref="PageIndex"/>. Each is compared against its own previous
+    /// parameter value, not the grid's current page state: a host that doesn't
+    /// bind <c>PageIndex</c> keeps passing its initial value on every re-render,
+    /// and that mustn't send the user back to that page. Returns whether the
+    /// change needs a reload.
+    /// </summary>
+    private bool UpdatePagingFromParameters()
+    {
+        var reload = false;
+
+        if (EnablePaging != _lastEnablePaging)
+        {
+            _lastEnablePaging = EnablePaging;
+            reload = true;
+        }
+
+        if (PageSize != _lastPageSizeParameter)
+        {
+            _lastPageSizeParameter = PageSize;
+            if (PageSize != _pageSize)
+            {
+                _pageSize = PageSize;
+                reload |= EnablePaging;
+            }
+        }
+
+        if (PageIndex != _lastPageIndexParameter)
+        {
+            _lastPageIndexParameter = PageIndex;
+            var pageIndex = Math.Max(0, PageIndex);
+            if (pageIndex != _pageIndex)
+            {
+                _pageIndex = pageIndex;
+                reload |= EnablePaging;
+            }
+        }
+
+        return reload;
     }
 
     private void ValidateParameters()
@@ -158,6 +282,27 @@ public partial class ColonnadeGrid<TItem>
             throw new InvalidOperationException(
                 $"'{nameof(RowKey)}' is required when '{nameof(DataProvider)}' is set: object-identity-based " +
                 "selection silently breaks across reloads for provider-backed data.");
+        }
+
+        if (EnableRowSelection && RowKey is null && typeof(TItem).IsValueType)
+        {
+            throw new InvalidOperationException(
+                $"'{nameof(RowKey)}' is required for row selection when the item type ('{typeof(TItem).Name}') is a " +
+                "value type: every boxed copy is a different object, so an identity-based key can't track a row.");
+        }
+
+        if (EnablePaging && PageSize < 1)
+        {
+            throw new InvalidOperationException(
+                $"'{nameof(PageSize)}' must be at least 1 when '{nameof(EnablePaging)}' is set (was {PageSize}).");
+        }
+
+        if (EnablePaging && (GroupPageSize < 1 || GroupsPerLoad < 1 || GroupRowBudget < 0))
+        {
+            throw new InvalidOperationException(
+                $"When '{nameof(EnablePaging)}' is set, '{nameof(GroupPageSize)}' and '{nameof(GroupsPerLoad)}' must be at " +
+                $"least 1 and '{nameof(GroupRowBudget)}' can't be negative " +
+                $"(were {GroupPageSize}, {GroupsPerLoad}, and {GroupRowBudget?.ToString() ?? "null"}).");
         }
     }
 
@@ -187,9 +332,19 @@ public partial class ColonnadeGrid<TItem>
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Columns register while rendering, so this is the first point they're
+        // all known. A state from the host can predate some of them (a view saved
+        // before a column was added), and a column can be added to the markup later.
+        var columnIds = _context.Columns.Select(c => c.Id);
+        if (!firstRender && _initialized && _state is not null
+            && _state.AddMissingColumns(columnIds) is var completed && !ReferenceEquals(completed, _state))
+        {
+            await SetStateAsync(completed, reload: false);
+        }
+
         if (firstRender)
         {
-            _state ??= State ?? GridState.Create(_context.Columns.Select(c => c.Id));
+            _state = (_state ?? GridState.Create([])).AddMissingColumns(columnIds);
             if (StateChanged.HasDelegate && !ReferenceEquals(_state, State))
             {
                 await StateChanged.InvokeAsync(_state);
@@ -245,24 +400,48 @@ public partial class ColonnadeGrid<TItem>
             return;
         }
 
+        if (IsPerGroupPaging)
+        {
+            await LoadGroupsAsync();
+            return;
+        }
+
+        ClearGroupSlots();
         _loadCts?.Cancel();
         var cts = new CancellationTokenSource();
         _loadCts = cts;
 
+        _loadError = null;
         _isLoading = true;
         StateHasChanged();
 
-        var request = new DataRequest(0, int.MaxValue, _state.Sort, _state.Filters, _state.GroupByPropertyName);
+        var request = EnablePaging
+            ? new DataRequest((int)Math.Min((long)_pageIndex * _pageSize, int.MaxValue), _pageSize,
+                _state.Sort, _state.Filters, _state.GroupByPropertyName)
+            : new DataRequest(0, int.MaxValue, _state.Sort, _state.Filters, _state.GroupByPropertyName);
 
+        DataResponse<TItem> response;
         try
         {
-            var response = await _effectiveProvider.GetDataAsync(request, cts.Token);
-            if (cts.IsCancellationRequested)
-            {
-                return;
-            }
-
-            _data = response;
+            response = await _effectiveProvider.GetDataAsync(request, cts.Token);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // A newer load cancelled this one (see _loadCts above), and its
+            // result is being discarded anyway. Letting the exception escape
+            // would silently abandon the rest of whichever caller awaited this
+            // load — for the first-render load, that's the remaining
+            // initialization in OnAfterRenderAsync — since Blazor treats a
+            // cancelled task as a non-error rather than reporting it.
+            return;
+        }
+        catch (Exception ex)
+        {
+            // Shown in place of the rows, with a retry button, rather than
+            // thrown: an exception escaping a component ends a Blazor Server circuit.
+            _loadError = ex.Message;
+            _data = null;
+            return;
         }
         finally
         {
@@ -271,6 +450,76 @@ public partial class ColonnadeGrid<TItem>
                 _isLoading = false;
             }
         }
+
+        if (cts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _data = response;
+
+        // The current page can stop existing (a smaller data set, or a host
+        // passing a PageIndex past the end): show the last page instead of an
+        // empty one.
+        if (EnablePaging && response.Items.Count == 0 && response.TotalCount > 0)
+        {
+            var lastPageIndex = (response.TotalCount - 1) / _pageSize;
+            if (lastPageIndex < _pageIndex)
+            {
+                await SetPageIndexAsync(lastPageIndex);
+                await LoadDataAsync();
+            }
+        }
+    }
+
+    private Task RetryLoadAsync() => LoadDataAsync();
+
+    private async Task SetPageIndexAsync(int pageIndex)
+    {
+        if (pageIndex == _pageIndex)
+        {
+            return;
+        }
+
+        _pageIndex = pageIndex;
+        if (PageIndexChanged.HasDelegate)
+        {
+            await PageIndexChanged.InvokeAsync(pageIndex);
+        }
+    }
+
+    private async Task OnPageRequestedAsync(int pageIndex)
+    {
+        var lastPageIndex = Math.Max(0, ((_data?.TotalCount ?? 0) - 1) / _pageSize);
+        pageIndex = Math.Clamp(pageIndex, 0, lastPageIndex);
+        if (pageIndex == _pageIndex)
+        {
+            return;
+        }
+
+        await SetPageIndexAsync(pageIndex);
+        await LoadDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnPageSizeRequestedAsync(int pageSize)
+    {
+        if (pageSize < 1 || pageSize == _pageSize)
+        {
+            return;
+        }
+
+        // Stay on whichever page now contains the first row that was showing.
+        var firstRowIndex = (long)_pageIndex * _pageSize;
+        _pageSize = pageSize;
+        if (PageSizeChanged.HasDelegate)
+        {
+            await PageSizeChanged.InvokeAsync(pageSize);
+        }
+
+        await SetPageIndexAsync((int)(firstRowIndex / pageSize));
+        await LoadDataAsync();
+        StateHasChanged();
     }
 
     private async Task SetStateAsync(GridState newState, bool reload)
@@ -289,6 +538,13 @@ public partial class ColonnadeGrid<TItem>
 
         if (reload)
         {
+            // Every reloading change (sort, filter, group-by) changes which
+            // rows land on which page, so the current page number is meaningless.
+            if (EnablePaging)
+            {
+                await SetPageIndexAsync(0);
+            }
+
             await LoadDataAsync();
         }
 
@@ -313,13 +569,9 @@ public partial class ColonnadeGrid<TItem>
             return RowKey(item);
         }
 
-        // In-memory ("Items") convenience path only (validated by ValidateParameters):
-        // falls back to an identity-based key, stable for a given object
-        // instance's lifetime. This requires TItem to be a reference type —
-        // a value-type TItem must supply RowKey explicitly, since boxing a
-        // struct on every call would otherwise produce a different identity
-        // hash each time and silently break selection.
-        return item is null ? "" : RuntimeHelpers.GetHashCode(item).ToString(CultureInfo.InvariantCulture);
+        // In-memory ("Items") convenience path only, and only for reference
+        // types (both validated by ValidateParameters): a key per object instance.
+        return item is null ? "" : IdentityRowKeys.For(item);
     }
 
     private bool IsSelected(TItem item) => _selectedKeys.Contains(GetRowKey(item));
@@ -338,7 +590,7 @@ public partial class ColonnadeGrid<TItem>
 
     private (bool AllSelected, bool SomeSelected) GetHeaderCheckboxState()
     {
-        var visibleKeys = (_data?.Items ?? []).Select(GetRowKey).ToList();
+        var visibleKeys = LoadedItems.Select(GetRowKey).ToList();
         if (visibleKeys.Count == 0)
         {
             return (false, false);
@@ -350,7 +602,7 @@ public partial class ColonnadeGrid<TItem>
 
     private Task ToggleSelectAllVisibleAsync()
     {
-        var visibleKeys = (_data?.Items ?? []).Select(GetRowKey).ToHashSet();
+        var visibleKeys = LoadedItems.Select(GetRowKey).ToHashSet();
         var (allSelected, _) = GetHeaderCheckboxState();
 
         var updated = new HashSet<string>(_selectedKeys);
@@ -424,6 +676,26 @@ public partial class ColonnadeGrid<TItem>
     private FilterDescriptor? GetActiveFilter(GridColumnBase<TItem> column) =>
         _state?.Filters.FirstOrDefault(f => f.PropertyName == column.PropertyName);
 
+    /// <summary>
+    /// Stats for a column's filter editor, over the rows matching every
+    /// <em>other</em> column's filter — so the editor's limits follow the rest of
+    /// the view without collapsing to its own current filter. Returns <c>null</c>
+    /// when the data source doesn't implement <see cref="IColumnStatsProvider{TItem}"/>.
+    /// </summary>
+    private async Task<ColumnStats?> LoadColumnStatsAsync(GridColumnBase<TItem> column, CancellationToken cancellationToken)
+    {
+        if (_effectiveProvider is not IColumnStatsProvider<TItem> provider || _state is null)
+        {
+            return null;
+        }
+
+        var request = new ColumnStatsRequest(
+            column.PropertyName,
+            _state.Filters.Where(f => f.PropertyName != column.PropertyName).ToList(),
+            IncludeValueCounts: column.EffectiveFilterKind == FilterKind.Values);
+        return await provider.GetColumnStatsAsync(request, cancellationToken);
+    }
+
     /// <summary>Flips the given (already-active) sort column between Ascending and Descending — a quick alternative to the "..." menu's Sort ascending/descending items.</summary>
     private Task ToggleSortDirectionAsync(GridColumnBase<TItem> column)
     {
@@ -446,8 +718,6 @@ public partial class ColonnadeGrid<TItem>
     private Task OnGroupByToggledAsync(string propertyName) =>
         SetStateAsync(_state!.SetGroupBy(_state.GroupByPropertyName == propertyName ? null : propertyName), reload: true);
 
-    private Task OnToggleGroupAsync(string groupKey) =>
-        SetStateAsync(_state!.ToggleGroupCollapsed(groupKey), reload: false);
 
     private void ToggleColumnsMenu()
     {

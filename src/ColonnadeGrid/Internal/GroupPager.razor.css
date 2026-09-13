@@ -1,0 +1,48 @@
+/* Repeats the base .cg-row rule — see GridRow.razor.css for why. */
+.cg-row {
+    display: grid;
+    min-height: var(--cg-row-height);
+    border-bottom: 1px solid var(--cg-border-color);
+}
+
+.cg-group-pager-cell {
+    /* Spans every track, like a group header's bar. */
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--cg-cell-padding-x);
+}
+
+.cg-group-pager {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--cg-muted-text-color);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cg-group-pager-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: var(--cg-radius);
+    background: transparent;
+    color: var(--cg-text-color);
+    cursor: pointer;
+}
+
+.cg-group-pager-button:hover:not(:disabled),
+.cg-group-pager-button:focus-visible {
+    background: var(--cg-row-hover-bg);
+}
+
+.cg-group-pager-button:disabled {
+    color: var(--cg-muted-text-color);
+    opacity: 0.5;
+    cursor: default;
+}

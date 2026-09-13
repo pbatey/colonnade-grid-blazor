@@ -1,0 +1,195 @@
+@namespace ColonnadeGrid.Internal
+@implements IFilterEditor
+@using ColonnadeGrid.Models
+
+@*
+    A checklist of values to include, producing an In filter. The values are
+    an enum's or boolean's own members, or else the distinct values from the
+    column's stats; counts come from the stats when available. Selecting
+    everything means "no filter".
+*@
+<div class="cg-values-editor">
+    @if (AllOptions.Count > SearchThreshold)
+    {
+        <input type="search" class="cg-values-search" placeholder="Search values" aria-label="Search values"
+               @bind="_search" @bind:event="oninput" />
+    }
+    <div class="cg-values-toolbar">
+        <button type="button" class="cg-filter-link" @onclick="SelectAllAsync">Select all</button>
+        <button type="button" class="cg-filter-link" @onclick="SelectNoneAsync">Select none</button>
+    </div>
+    <ul class="cg-values-list" aria-label="Values">
+        @foreach (var option in VisibleOptions)
+        {
+            <li>
+                <label class="cg-values-option @(option.Count == 0 ? "cg-values-option-absent" : "")">
+                    <input type="checkbox" checked="@IsChecked(option)" @onchange="e => ToggleAsync(option, e)" />
+                    <span class="cg-values-label">@option.Label</span>
+                    @if (option.Count is { } count)
+                    {
+                        <span class="cg-values-count">@count.ToString("N0")</span>
+                    }
+                </label>
+            </li>
+        }
+    </ul>
+    @if (Stats is { HasMoreValues: true, Values: { } shown })
+    {
+        <div class="cg-filter-hint">Showing the first @shown.Count.ToString("N0") values.</div>
+    }
+</div>
+
+@code {
+    private const int SearchThreshold = 8;
+
+    /// <param name="Value">The value as filter text, or <c>null</c> for the "(empty)" option.</param>
+    private sealed record Option(string? Value, string Label, int? Count);
+
+    [Parameter, EditorRequired]
+    public string PropertyName { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public Type PropertyType { get; set; } = typeof(object);
+
+    [Parameter]
+    public FilterDescriptor? CurrentFilter { get; set; }
+
+    [Parameter]
+    public ColumnStats? Stats { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    /// <summary>The selected values; <c>null</c> until the values to choose from are known.</summary>
+    private HashSet<string>? _selected;
+    private bool _includeEmpty = true;
+    private string _search = "";
+
+    /// <summary>Whether a property type has a fixed set of values to list without the data source (enums and booleans).</summary>
+    internal static bool HasOwnValues(Type propertyType)
+    {
+        var type = Nullable.GetUnderlyingType(propertyType) ?? propertyType;
+        return type.IsEnum || type == typeof(bool);
+    }
+
+    private bool AllowsEmpty => !PropertyType.IsValueType || Nullable.GetUnderlyingType(PropertyType) is not null;
+
+    private bool ShowEmptyOption => AllowsEmpty && (Stats is null || Stats.EmptyCount > 0);
+
+    private List<Option> AllOptions
+    {
+        get
+        {
+            var type = Nullable.GetUnderlyingType(PropertyType) ?? PropertyType;
+            var counts = Stats?.Values?.ToDictionary(v => v.Value, v => v.Count);
+            IEnumerable<string> values = type.IsEnum ? Enum.GetNames(type)
+                : type == typeof(bool) ? ["True", "False"]
+                : Stats?.Values?.Select(v => v.Value) ?? [];
+
+            var options = values.Select(value => new Option(value, value, counts?.GetValueOrDefault(value))).ToList();
+            if (ShowEmptyOption)
+            {
+                options.Add(new Option(null, "(empty)", Stats?.EmptyCount));
+            }
+
+            return options;
+        }
+    }
+
+    private IEnumerable<Option> VisibleOptions =>
+        _search.Length == 0
+            ? AllOptions
+            : AllOptions.Where(option => option.Label.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    public bool CanApply => _selected?.Count > 0 || (_includeEmpty && ShowEmptyOption);
+
+    protected override void OnParametersSet()
+    {
+        // Start from the current filter, or everything selected, once there are
+        // values to choose from: right away for enums and booleans, when the
+        // stats arrive otherwise.
+        if (_selected is not null || AllOptions.Count == 0)
+        {
+            return;
+        }
+
+        if (CurrentFilter is { Operator: FilterOperator.In } filter)
+        {
+            _selected = new HashSet<string>(filter.Values ?? []);
+            _includeEmpty = filter.IncludeEmpty;
+        }
+        else
+        {
+            _selected = AllOptions.Where(o => o.Value is not null).Select(o => o.Value!).ToHashSet();
+            _includeEmpty = true;
+        }
+    }
+
+    public FilterDescriptor? BuildFilter()
+    {
+        if (_selected is null)
+        {
+            return null;
+        }
+
+        var options = AllOptions;
+        var knownValues = options.Where(o => o.Value is not null).Select(o => o.Value!).ToList();
+
+        // Every value (and "(empty)", if listed) selected excludes nothing. With a
+        // truncated list, unlisted values can't be deselected, so that holds too.
+        if (options.All(IsChecked) && _selected.All(knownValues.Contains))
+        {
+            return null;
+        }
+
+        var values = knownValues.Where(_selected.Contains)
+            .Concat(_selected.Where(value => !knownValues.Contains(value)))
+            .ToList();
+        return new FilterDescriptor(PropertyName, FilterOperator.In, null, Values: values, IncludeEmpty: AllowsEmpty && _includeEmpty);
+    }
+
+    private bool IsChecked(Option option) =>
+        option.Value is null ? _includeEmpty : _selected?.Contains(option.Value) == true;
+
+    private async Task ToggleAsync(Option option, ChangeEventArgs e)
+    {
+        SetChecked(option, e.Value is true);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task SelectAllAsync()
+    {
+        foreach (var option in VisibleOptions)
+        {
+            SetChecked(option, true);
+        }
+
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task SelectNoneAsync()
+    {
+        foreach (var option in VisibleOptions)
+        {
+            SetChecked(option, false);
+        }
+
+        await OnChanged.InvokeAsync();
+    }
+
+    private void SetChecked(Option option, bool isChecked)
+    {
+        if (option.Value is null)
+        {
+            _includeEmpty = isChecked;
+        }
+        else if (isChecked)
+        {
+            _selected?.Add(option.Value);
+        }
+        else
+        {
+            _selected?.Remove(option.Value);
+        }
+    }
+}

@@ -50,3 +50,14 @@
     border-color: var(--cg-accent-color);
     color: #fff;
 }
+
+.cg-filter-popover-actions button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.cg-filter-status {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--cg-popover-muted-text-color);
+}

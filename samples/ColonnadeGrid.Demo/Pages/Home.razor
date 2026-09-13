@@ -67,6 +67,18 @@
             Compact
         </label>
     </div>
+
+    <div class="demo-toolbar">
+        <span class="demo-toolbar-label">Paging:</span>
+        <label>
+            <input type="radio" name="paging" checked="@(!_enablePaging)" @onchange="() => _enablePaging = false" />
+            Off
+        </label>
+        <label>
+            <input type="radio" name="paging" checked="@_enablePaging" @onchange="() => _enablePaging = true" />
+            On
+        </label>
+    </div>
 </div>
 
 @*
@@ -86,6 +98,10 @@
                      RowKey="@(i => i.Id.ToString())"
                      EnableRowSelection="_enableRowSelection"
                      CompactMode="_compactMode"
+                     EnablePaging="_enablePaging"
+                     PageSize="10"
+                     PageSizeOptions="DemoPageSizes"
+                     GroupPageSize="5"
                      @bind-State="_state"
                      @bind-SelectedKeys="_selectedKeys">
         <Columns>
@@ -116,7 +132,9 @@
     private bool _useRemoteProvider;
     private bool _useCenteredContainer = true;
     private bool _enableRowSelection = true;
+    private static readonly IReadOnlyList<int> DemoPageSizes = [5, 10, 25];
     private bool _compactMode;
+    private bool _enablePaging;
     private GridState? _state;
     private IReadOnlySet<string> _selectedKeys = new HashSet<string>();
 
@@ -138,7 +156,7 @@
         if (!enabled)
         {
             // Selection is tracked independently of EnableRowSelection (see
-            // the developer guide), so it wouldn't otherwise clear itself
+            // docs/row-selection.md), so it wouldn't otherwise clear itself
             // just because the checkbox column disappears — leaving the
             // "Selected: N" count stuck at a stale value would be confusing.
             _selectedKeys = new HashSet<string>();

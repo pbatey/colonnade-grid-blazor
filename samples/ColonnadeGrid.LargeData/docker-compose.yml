@@ -1,0 +1,59 @@
+# Postgres for the ColonnadeGrid large-data sample, plus a one-shot seed job.
+#
+#   docker compose up -d            # start Postgres and seed it (skipped if already seeded)
+#   SEED_FORCE=1 docker compose run --rm seed   # drop and re-seed
+#   SEED_ROWS=500000 SEED_FORCE=1 docker compose run --rm seed
+#   docker compose down -v          # stop and delete the data volume
+
+name: colonnade-largedata
+
+services:
+  db:
+    image: postgres:17-alpine
+    # JIT compilation only pays off for long analytical queries. The API's
+    # multi-group page query is fast but has a high estimated cost, so with JIT
+    # on, Postgres spent ~270 ms compiling a query that runs in ~30 ms.
+    command: ["postgres", "-c", "jit=off"]
+    environment:
+      POSTGRES_DB: colonnade
+      POSTGRES_USER: colonnade
+      POSTGRES_PASSWORD: colonnade
+      # ICU root collation sorts text linguistically ("admins" before "SSO"),
+      # matching .NET's culture-aware string ordering used by the grid's
+      # in-memory provider. The image's default is bytewise, which sorts all
+      # uppercase before lowercase. Only applied when the volume is first
+      # created — run `docker compose down -v` to pick up a change.
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=und"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U colonnade -d colonnade"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  seed:
+    image: python:3.12-slim
+    depends_on:
+      db:
+        condition: service_healthy
+    working_dir: /seed
+    volumes:
+      - ./db:/seed:ro
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: colonnade
+      PGUSER: colonnade
+      PGPASSWORD: colonnade
+      SEED_ROWS: ${SEED_ROWS:-100000}
+      SEED_FORCE: ${SEED_FORCE:-0}
+      PIP_ROOT_USER_ACTION: ignore
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    command: sh -c "pip install --quiet --no-cache-dir -r requirements.txt && python seed.py"
+    restart: "no"
+
+volumes:
+  pgdata:

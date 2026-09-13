@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using ColonnadeGrid.Models;
 
 namespace ColonnadeGrid.Abstractions;
 
@@ -39,6 +40,18 @@ public abstract class GridColumnBase<TItem>
 
     /// <summary>Whether this column can be selected as the group-by column.</summary>
     public bool Groupable { get; init; }
+
+    /// <summary>The type of the property this column reads.</summary>
+    public virtual Type PropertyType => typeof(object);
+
+    /// <summary>
+    /// The filter editor to show, overriding the one chosen from
+    /// <see cref="PropertyType"/>; <c>null</c> to choose automatically.
+    /// </summary>
+    public FilterKind? FilterKind { get; init; }
+
+    /// <summary>The filter editor this column shows: <see cref="FilterKind"/> if set, otherwise the default for <see cref="PropertyType"/>.</summary>
+    public FilterKind EffectiveFilterKind => FilterKind ?? FilterKinds.ForType(PropertyType);
 
     /// <summary>Custom cell content. When <c>null</c>, <see cref="GetDisplayText"/> is rendered as plain text.</summary>
     public RenderFragment<TItem>? CellTemplate { get; init; }

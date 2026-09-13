@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.AspNetCore.Components;
 using ColonnadeGrid.Internal;
+using ColonnadeGrid.Models;
 
 namespace ColonnadeGrid;
 
@@ -39,6 +40,17 @@ public partial class GridColumn<TItem, TProp>
     public bool Groupable { get; set; }
 
     /// <summary>
+    /// The filter editor to show when <see cref="Filterable"/> is set. By default
+    /// it's chosen from the property's type: a value checklist for enums and
+    /// booleans, a range for numbers and durations, date presets and a range for
+    /// dates, and an operator with text otherwise. Set
+    /// <see cref="Models.FilterKind.Values"/> on a text column with a small set of
+    /// values to pick from them instead.
+    /// </summary>
+    [Parameter]
+    public FilterKind? FilterKind { get; set; }
+
+    /// <summary>
     /// A format string (e.g. <c>"yyyy-MM-dd"</c>) applied via
     /// <see cref="IFormattable"/> when the property value implements it and
     /// no <see cref="CellTemplate"/> is given.
@@ -70,6 +82,7 @@ public partial class GridColumn<TItem, TProp>
             Sortable = Sortable,
             Filterable = Filterable,
             Groupable = Groupable,
+            FilterKind = FilterKind,
             CellTemplate = CellTemplate,
             HeaderTemplate = HeaderTemplate
         };

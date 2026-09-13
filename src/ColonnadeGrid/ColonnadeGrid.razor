@@ -112,6 +112,7 @@
                                             Column="column"
                                             State="_state"
                                             CurrentFilter="GetActiveFilter(column)"
+                                            LoadStats="cancellationToken => LoadColumnStatsAsync(column, cancellationToken)"
                                             CanHide="VisibleColumns.Count > 1"
                                             OpenToFilterView="_openColumnMenuOpensToFilterView"
                                             OnSortChanged="OnSortChangedAsync"
@@ -149,6 +150,74 @@
             {
                 <div class="cg-status-row">Loading…</div>
             }
+            else if (_loadError is not null)
+            {
+                <div class="cg-status-row cg-load-error" role="alert">
+                    <span>Couldn't load rows: @_loadError</span>
+                    <button type="button" class="cg-load-retry" @onclick="RetryLoadAsync">Retry</button>
+                </div>
+            }
+            else if (IsPerGroupPaging && _groupSlots is not null)
+            {
+                @if (_groupSlots.Count == 0)
+                {
+                    <div class="cg-status-row">No rows to display.</div>
+                }
+                else
+                {
+                    var expandedGroupKeys = GetExpandedGroupKeys();
+                    @foreach (var slot in _groupSlots)
+                    {
+                        var expanded = expandedGroupKeys.Contains(slot.Summary.Key);
+                        <GroupHeaderRow DisplayText="@slot.Summary.DisplayText"
+                                        Count="slot.Count"
+                                        Collapsed="!expanded"
+                                        OnToggle="() => OnToggleGroupAsync(slot.Summary.Key)"
+                                        GridTemplateStyle="@BuildGridTemplateColumns()" />
+                        @if (expanded)
+                        {
+                            @if (slot.Error is not null)
+                            {
+                                <div class="cg-status-row cg-group-error" role="alert">
+                                    <span>Couldn't load this group: @slot.Error</span>
+                                    <button type="button" class="cg-group-retry" @onclick="() => RetryGroupAsync(slot)">Retry</button>
+                                </div>
+                            }
+                            else if (slot.Items is null)
+                            {
+                                @for (var i = 0; i < GetSkeletonRowCount(slot); i++)
+                                {
+                                    <SkeletonRow ColumnCount="VisibleColumns.Count"
+                                                 EnableSelection="EnableRowSelection"
+                                                 GridTemplateStyle="@BuildGridTemplateColumns()" />
+                                }
+                            }
+                            else
+                            {
+                                @foreach (var item in slot.Items)
+                                {
+                                    <GridRow TItem="TItem"
+                                             Item="item"
+                                             Columns="VisibleColumns"
+                                             EnableSelection="EnableRowSelection"
+                                             Selected="IsSelected(item)"
+                                             OnToggleSelect="() => ToggleRowSelectionAsync(item)"
+                                             GridTemplateStyle="@BuildGridTemplateColumns()" />
+                                }
+                            }
+                            @if (slot.Count > GroupPageSize)
+                            {
+                                <GroupPager PageIndex="slot.PageIndex"
+                                            PageSize="GroupPageSize"
+                                            TotalCount="slot.Count"
+                                            GroupName="@slot.Summary.DisplayText"
+                                            GridTemplateStyle="@BuildGridTemplateColumns()"
+                                            OnPageRequested="pageIndex => OnGroupPageRequestedAsync(slot, pageIndex)" />
+                            }
+                        }
+                    }
+                }
+            }
             else if (_data is null || _data.Items.Count == 0)
             {
                 <div class="cg-status-row">No rows to display.</div>
@@ -159,7 +228,7 @@
                 {
                     var collapsed = _state!.IsGroupCollapsed(group.Key);
                     <GroupHeaderRow DisplayText="@group.DisplayText"
-                                    Count="group.Count"
+                                    Count="group.TotalCount ?? group.Count"
                                     Collapsed="collapsed"
                                     OnToggle="() => OnToggleGroupAsync(group.Key)"
                                     GridTemplateStyle="@BuildGridTemplateColumns()" />
@@ -193,5 +262,24 @@
                 }
             }
         </div>
+        @if (IsPerGroupPaging && _groupSlots is not null && !_isLoading)
+        {
+            <GroupListFooter LoadedGroupCount="_groupSlots.Count"
+                             TotalGroupCount="_totalGroupCount"
+                             TotalCount="_groupedTotalCount"
+                             BatchSize="GroupsPerLoad"
+                             Loading="_isLoadingMoreGroups"
+                             Error="@_showMoreGroupsError"
+                             OnShowMore="OnShowMoreGroupsAsync" />
+        }
+        else if (EnablePaging && _data is not null)
+        {
+            <GridPager PageIndex="_pageIndex"
+                       PageSize="_pageSize"
+                       TotalCount="_data.TotalCount"
+                       PageSizeOptions="PageSizeOptions"
+                       OnPageRequested="OnPageRequestedAsync"
+                       OnPageSizeRequested="OnPageSizeRequestedAsync" />
+        }
     }
 </div>

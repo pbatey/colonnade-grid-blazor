@@ -1,0 +1,136 @@
+.cg-range-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    /* The menu pins line-height to its item spacing; form rows need normal text spacing. */
+    line-height: 1.4;
+}
+
+/*
+  Two range inputs stacked on one track. The inputs themselves ignore the
+  pointer (so the upper one doesn't block the lower one's thumb); only their
+  thumbs take it. The visible track and the selected span are separate
+  elements behind them.
+*/
+.cg-range-slider {
+    position: relative;
+    height: 24px;
+    margin: 0 7px;
+}
+
+.cg-range-track,
+.cg-range-fill {
+    position: absolute;
+    top: 10px;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.cg-range-track {
+    left: 0;
+    right: 0;
+    background: var(--cg-popover-border-color);
+}
+
+.cg-range-fill {
+    background: var(--cg-accent-color);
+}
+
+.cg-range-thumb {
+    position: absolute;
+    top: 0;
+    left: -7px;
+    width: calc(100% + 14px);
+    height: 24px;
+    margin: 0;
+    background: transparent;
+    pointer-events: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.cg-range-thumb::-webkit-slider-runnable-track {
+    height: 4px;
+    background: transparent;
+}
+
+.cg-range-thumb::-moz-range-track {
+    height: 4px;
+    background: transparent;
+}
+
+.cg-range-thumb::-webkit-slider-thumb {
+    pointer-events: auto;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    border: 2px solid var(--cg-popover-bg);
+    border-radius: 50%;
+    background: var(--cg-accent-color);
+    box-shadow: 0 0 0 1px var(--cg-accent-color);
+    cursor: pointer;
+}
+
+.cg-range-thumb::-moz-range-thumb {
+    pointer-events: auto;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--cg-popover-bg);
+    border-radius: 50%;
+    background: var(--cg-accent-color);
+    box-shadow: 0 0 0 1px var(--cg-accent-color);
+    cursor: pointer;
+}
+
+.cg-range-thumb:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--cg-accent-color);
+}
+
+.cg-range-limits {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--cg-popover-muted-text-color);
+    font-variant-numeric: tabular-nums;
+}
+
+.cg-range-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cg-range-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cg-range-field > span {
+    width: 3em;
+}
+
+.cg-range-number {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--cg-popover-border-color);
+    border-radius: 4px;
+    padding: 4px 6px;
+}
+
+.cg-filter-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.cg-filter-count {
+    font-size: 12px;
+    color: var(--cg-popover-muted-text-color);
+    font-variant-numeric: tabular-nums;
+}

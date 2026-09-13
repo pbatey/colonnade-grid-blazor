@@ -1,33 +1,98 @@
 @namespace ColonnadeGrid.Internal
 @typeparam TItem
+@implements IDisposable
 @using ColonnadeGrid.Abstractions
 @using ColonnadeGrid.Models
 
+@*
+    The "Filter by values…" form inside a column's "..." menu. Picks an editor
+    from the column's filter kind — a value checklist, a number or duration
+    range, a date range, or an operator and text — and, when the data source
+    can describe the column (IColumnStatsProvider), loads the column's stats so
+    the editor's choices and limits fit the data. Apply/Clear live here; each
+    editor only builds the filter.
+*@
 <div class="cg-filter-popover" @onclick:stopPropagation="true">
-    <select class="cg-filter-operator" value="@_operator" @onchange="OnOperatorChanged">
-        @foreach (var op in Operators)
-        {
-            <option value="@op">@FormatOperator(op)</option>
-        }
-    </select>
-    @if (_operator is not (FilterOperator.IsEmpty or FilterOperator.IsNotEmpty))
+    @switch (EditorKind)
     {
-        <input type="text" class="cg-filter-value" @bind="_value" @bind:event="oninput" placeholder="Value" />
+        case FilterKind.Values:
+            <ValuesFilterEditor @ref="_valuesEditor"
+                                PropertyName="@Column.PropertyName"
+                                PropertyType="Column.PropertyType"
+                                CurrentFilter="CurrentFilter"
+                                Stats="_stats"
+                                OnChanged="StateHasChanged" />
+            break;
+        case FilterKind.Number:
+        case FilterKind.Duration:
+            <RangeFilterEditor @ref="_rangeEditor"
+                               PropertyName="@Column.PropertyName"
+                               PropertyType="Column.PropertyType"
+                               Kind="EditorKind"
+                               CurrentFilter="CurrentFilter"
+                               Stats="_stats"
+                               OnChanged="StateHasChanged" />
+            break;
+        case FilterKind.Date:
+            <DateFilterEditor @ref="_dateEditor"
+                              PropertyName="@Column.PropertyName"
+                              PropertyType="Column.PropertyType"
+                              CurrentFilter="CurrentFilter"
+                              Stats="_stats"
+                              OnChanged="StateHasChanged" />
+            break;
+        default:
+            <select class="cg-filter-operator" value="@_operator" @onchange="OnOperatorChanged">
+                @foreach (var op in TextOperators)
+                {
+                    <option value="@op">@FormatOperator(op)</option>
+                }
+            </select>
+            @if (_operator is not (FilterOperator.IsEmpty or FilterOperator.IsNotEmpty))
+            {
+                <input type="text" class="cg-filter-value" @bind="_value" @bind:event="oninput" placeholder="Value" />
+            }
+            break;
+    }
+    @if (_statsState == StatsState.Loading)
+    {
+        <div class="cg-filter-status">Loading values…</div>
+    }
+    else if (_statsState == StatsState.Failed)
+    {
+        <div class="cg-filter-status">Couldn't load this column's values.</div>
     }
     <div class="cg-filter-popover-actions">
-        <button type="button" @onclick="ApplyAsync">Apply</button>
+        <button type="button" disabled="@(!CanApply)" @onclick="ApplyAsync">Apply</button>
         <button type="button" @onclick="ClearAsync">Clear</button>
     </div>
 </div>
 
 @code {
-    private static readonly FilterOperator[] Operators = Enum.GetValues<FilterOperator>();
+    private enum StatsState
+    {
+        None,
+        Loading,
+        Loaded,
+        Failed
+    }
+
+    /// <summary>The operators the text editor offers; the others need a structured editor.</summary>
+    private static readonly FilterOperator[] TextOperators =
+    [
+        FilterOperator.Contains, FilterOperator.Equals, FilterOperator.NotEquals, FilterOperator.StartsWith,
+        FilterOperator.GreaterThan, FilterOperator.LessThan, FilterOperator.IsEmpty, FilterOperator.IsNotEmpty
+    ];
 
     [Parameter, EditorRequired]
     public GridColumnBase<TItem> Column { get; set; } = default!;
 
     [Parameter]
     public FilterDescriptor? CurrentFilter { get; set; }
+
+    /// <summary>Loads the column's stats, returning <c>null</c> when the data source can't provide them.</summary>
+    [Parameter]
+    public Func<CancellationToken, Task<ColumnStats?>>? LoadStats { get; set; }
 
     [Parameter]
     public EventCallback<FilterDescriptor> OnApply { get; set; }
@@ -38,17 +103,78 @@
     [Parameter]
     public EventCallback OnClose { get; set; }
 
+    /// <summary>Raised when the form's size may have changed (stats arrived), so the menu can reposition itself.</summary>
+    [Parameter]
+    public EventCallback OnLayoutChanged { get; set; }
+
+    private readonly CancellationTokenSource _statsCts = new();
     private FilterOperator _operator = FilterOperator.Contains;
     private string? _value;
+    private ColumnStats? _stats;
+    private StatsState _statsState;
+    private ValuesFilterEditor? _valuesEditor;
+    private RangeFilterEditor? _rangeEditor;
+    private DateFilterEditor? _dateEditor;
 
-    protected override void OnInitialized()
+    private FilterKind EditorKind
     {
-        if (CurrentFilter is not null)
+        get
         {
-            _operator = CurrentFilter.Operator;
-            _value = CurrentFilter.Value;
+            var kind = Column.EffectiveFilterKind;
+
+            // A value list needs values to list: an enum's or boolean's own, or
+            // the distinct values from the data source. With neither, use text.
+            return kind == FilterKind.Values
+                   && !ValuesFilterEditor.HasOwnValues(Column.PropertyType)
+                   && _statsState is not (StatsState.Loading or StatsState.Loaded)
+                ? FilterKind.Text
+                : kind;
         }
     }
+
+    private IFilterEditor? Editor => EditorKind switch
+    {
+        FilterKind.Values => _valuesEditor,
+        FilterKind.Number or FilterKind.Duration => _rangeEditor,
+        FilterKind.Date => _dateEditor,
+        _ => null
+    };
+
+    private bool CanApply => EditorKind == FilterKind.Text || Editor?.CanApply == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CurrentFilter is { Operator: <= FilterOperator.IsNotEmpty } textFilter)
+        {
+            _operator = textFilter.Operator;
+            _value = textFilter.Value;
+        }
+
+        if (LoadStats is null || Column.EffectiveFilterKind == FilterKind.Text)
+        {
+            return;
+        }
+
+        _statsState = StatsState.Loading;
+        try
+        {
+            _stats = await LoadStats(_statsCts.Token);
+            _statsState = _stats is null ? StatsState.None : StatsState.Loaded;
+        }
+        catch (OperationCanceledException) when (_statsCts.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            // The editor still works without stats, just without data-based limits.
+            _statsState = StatsState.Failed;
+        }
+
+        await OnLayoutChanged.InvokeAsync();
+    }
+
+    public void Dispose() => _statsCts.Cancel();
 
     private void OnOperatorChanged(ChangeEventArgs e)
     {
@@ -60,7 +186,29 @@
 
     private async Task ApplyAsync()
     {
-        await OnApply.InvokeAsync(new FilterDescriptor(Column.PropertyName, _operator, _value));
+        FilterDescriptor? filter;
+        if (EditorKind == FilterKind.Text)
+        {
+            filter = new FilterDescriptor(Column.PropertyName, _operator, _value);
+        }
+        else if (Editor is { } editor)
+        {
+            filter = editor.BuildFilter();
+        }
+        else
+        {
+            return;
+        }
+
+        if (filter is null)
+        {
+            await OnClear.InvokeAsync();
+        }
+        else
+        {
+            await OnApply.InvokeAsync(filter);
+        }
+
         await OnClose.InvokeAsync();
     }
 

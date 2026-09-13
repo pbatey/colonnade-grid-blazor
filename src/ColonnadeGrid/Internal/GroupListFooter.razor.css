@@ -1,0 +1,39 @@
+.cg-group-footer {
+    /* Sticks to the bottom of the scroll container, like GridPager. */
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 8px var(--cg-cell-padding-x);
+    border-top: 1px solid var(--cg-border-color);
+    background: var(--cg-canvas-bg);
+    color: var(--cg-muted-text-color);
+    font-variant-numeric: tabular-nums;
+}
+
+.cg-group-footer-error {
+    color: var(--cg-danger-color);
+}
+
+.cg-group-footer-more {
+    margin-left: auto;
+    font: inherit;
+    color: var(--cg-text-color);
+    background: var(--cg-canvas-bg);
+    border: 1px solid var(--cg-border-color);
+    border-radius: var(--cg-radius);
+    padding: 4px 12px;
+    cursor: pointer;
+}
+
+.cg-group-footer-more:hover:not(:disabled),
+.cg-group-footer-more:focus-visible {
+    background: var(--cg-row-hover-bg);
+}
+
+.cg-group-footer-more:disabled {
+    color: var(--cg-muted-text-color);
+    cursor: default;
+}

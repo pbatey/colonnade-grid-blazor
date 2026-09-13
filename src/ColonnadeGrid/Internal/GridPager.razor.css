@@ -1,0 +1,86 @@
+.cg-pager {
+    /* Sticks to the bottom of whatever scrolls the table (the host's
+       container, or the page), so the pager stays reachable on a long page
+       of rows. Only within the grid's own box, though: once the table itself
+       scrolls out of view, the pager goes with it. Horizontal scrolling is not
+       handled — in a narrow container the pager scrolls sideways with the
+       table, since a sticky element can't leave its parent's box. */
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 8px var(--cg-cell-padding-x);
+    border-top: 1px solid var(--cg-border-color);
+    /* Opaque, like the sticky header, so rows don't show through while scrolling. */
+    background: var(--cg-canvas-bg);
+    color: var(--cg-muted-text-color);
+}
+
+.cg-pager-range {
+    font-variant-numeric: tabular-nums;
+}
+
+.cg-pager-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cg-pager-size-select {
+    font: inherit;
+    color: var(--cg-text-color);
+    background: var(--cg-canvas-bg);
+    border: 1px solid var(--cg-border-color);
+    border-radius: var(--cg-radius);
+    padding: 2px 6px;
+}
+
+.cg-pager-pages {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+}
+
+.cg-pager-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: var(--cg-radius);
+    background: transparent;
+    color: var(--cg-text-color);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.cg-pager-button:hover:not(:disabled),
+.cg-pager-button:focus-visible {
+    background: var(--cg-row-hover-bg);
+    border-color: var(--cg-border-color);
+}
+
+.cg-pager-button:disabled {
+    color: var(--cg-muted-text-color);
+    opacity: 0.5;
+    cursor: default;
+}
+
+.cg-pager-button.cg-pager-page-current,
+.cg-pager-button.cg-pager-page-current:hover {
+    background: var(--cg-accent-color);
+    border-color: var(--cg-accent-color);
+    color: #fff;
+}
+
+.cg-pager-gap {
+    min-width: 24px;
+    text-align: center;
+}

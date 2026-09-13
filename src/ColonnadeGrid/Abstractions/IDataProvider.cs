@@ -17,9 +17,10 @@ public interface IDataProvider<TItem>
     /// <summary>
     /// Returns the page of data described by <paramref name="request"/>. See
     /// <see cref="DataRequest"/>/<see cref="DataResponse{TItem}"/> for the
-    /// paging/sort/filter/group contract, including the v1 rule that
-    /// <see cref="DataRequest.Skip"/>/<see cref="DataRequest.Take"/> are
-    /// ignored when <see cref="DataRequest.GroupByPropertyName"/> is set.
+    /// paging/sort/filter/group contract, including how a grouped request is
+    /// paged. The grid cancels <paramref name="cancellationToken"/> when a newer
+    /// request replaces this one; throwing <see cref="OperationCanceledException"/>
+    /// in response is fine.
     /// </summary>
     Task<DataResponse<TItem>> GetDataAsync(DataRequest request, CancellationToken cancellationToken = default);
 }

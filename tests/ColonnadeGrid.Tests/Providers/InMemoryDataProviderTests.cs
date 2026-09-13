@@ -260,17 +260,53 @@ public class InMemoryDataProviderTests
     }
 
     [Fact]
-    public async Task Group_TakeIsIgnored_AllMatchingItemsReturned()
+    public async Task Group_Unpaged_TotalCountEqualsCount()
     {
         var provider = CreateProvider();
 
-        var response = await provider.GetDataAsync(Request(take: 1, groupBy: nameof(Issue.Status)));
+        var response = await provider.GetDataAsync(Request(groupBy: nameof(Issue.Status)));
 
-        // v1 rule: grouping ignores Skip/Take entirely.
         Assert.Equal(SampleIssues.Length, response.Items.Count);
+        Assert.All(response.Groups!, g => Assert.Equal(g.Count, g.TotalCount));
     }
 
-    // ----- paging (ungrouped only) -----
+    [Fact]
+    public async Task Group_SkipAndTake_ReturnsPageAndClipsGroupsToIt()
+    {
+        var provider = CreateProvider();
+
+        // Grouped order: Todo (Fix login bug, Write docs), InProgress (Add dark
+        // mode), Done (Refactor auth, Upgrade deps). Items 1..3 straddle all three.
+        var response = await provider.GetDataAsync(Request(
+            skip: 1,
+            take: 3,
+            sort: new SortDescriptor(nameof(Issue.Status), SortDirection.Ascending),
+            groupBy: nameof(Issue.Status)));
+
+        Assert.Equal(["Write docs", "Add dark mode", "Refactor auth"], response.Items.Select(i => i.Title));
+        Assert.Equal(5, response.TotalCount);
+        Assert.Equal(
+            [
+                new DataGroup("Todo", "Todo", Count: 1, StartIndex: 0, TotalCount: 2),
+                new DataGroup("InProgress", "InProgress", Count: 1, StartIndex: 1, TotalCount: 1),
+                new DataGroup("Done", "Done", Count: 1, StartIndex: 2, TotalCount: 2)
+            ],
+            response.Groups);
+    }
+
+    [Fact]
+    public async Task Group_SkipBeyondCount_ReturnsNoItemsOrGroups()
+    {
+        var provider = CreateProvider();
+
+        var response = await provider.GetDataAsync(Request(skip: 100, take: 10, groupBy: nameof(Issue.Status)));
+
+        Assert.Empty(response.Items);
+        Assert.Empty(response.Groups!);
+        Assert.Equal(5, response.TotalCount);
+    }
+
+    // ----- paging -----
 
     [Fact]
     public async Task Page_SkipAndTake_ReturnsRequestedSlice()
@@ -295,5 +331,91 @@ public class InMemoryDataProviderTests
 
         Assert.Empty(response.Items);
         Assert.Equal(5, response.TotalCount);
+    }
+
+    // ----- per-group paging (IGroupedDataProvider) -----
+
+    private static readonly SortDescriptor StatusAscending = new(nameof(Issue.Status), SortDirection.Ascending);
+    private static readonly SortDescriptor TitleAscending = new(nameof(Issue.Title), SortDirection.Ascending);
+
+    [Fact]
+    public async Task GetGroups_ReturnsCountsInGroupOrder_WithTotals()
+    {
+        var provider = CreateProvider();
+
+        var response = await provider.GetGroupsAsync(new GroupListRequest(StatusAscending, [], nameof(Issue.Status), 0, 10));
+
+        Assert.Equal(
+            [new GroupSummary("Todo", "Todo", 2), new GroupSummary("InProgress", "InProgress", 1), new GroupSummary("Done", "Done", 2)],
+            response.Groups);
+        Assert.Equal(3, response.TotalGroupCount);
+        Assert.Equal(5, response.TotalCount);
+    }
+
+    [Fact]
+    public async Task GetGroups_SkipAndTake_PageTheGroups_TotalsStillCoverAll()
+    {
+        var provider = CreateProvider();
+
+        var response = await provider.GetGroupsAsync(new GroupListRequest(StatusAscending, [], nameof(Issue.Status), 1, 1));
+
+        Assert.Equal([new GroupSummary("InProgress", "InProgress", 1)], response.Groups);
+        Assert.Equal(3, response.TotalGroupCount);
+        Assert.Equal(5, response.TotalCount);
+    }
+
+    [Fact]
+    public async Task GetGroups_AppliesFilters_ToCountsAndTotals()
+    {
+        var provider = CreateProvider();
+
+        var response = await provider.GetGroupsAsync(new GroupListRequest(
+            StatusAscending,
+            [new FilterDescriptor(nameof(Issue.Priority), FilterOperator.GreaterThan, "1")],
+            nameof(Issue.Status), 0, 10));
+
+        Assert.Equal(
+            [new GroupSummary("Todo", "Todo", 1), new GroupSummary("InProgress", "InProgress", 1), new GroupSummary("Done", "Done", 1)],
+            response.Groups);
+        Assert.Equal(3, response.TotalCount);
+    }
+
+    [Fact]
+    public async Task GetGroups_NullAndEmptyString_AreSeparateGroupsWithDistinctKeys()
+    {
+        var provider = new InMemoryDataProvider<Issue>(SampleIssues.Append(new Issue("Blank", 1, Status.Todo, null, "")));
+
+        var response = await provider.GetGroupsAsync(new GroupListRequest(null, [], nameof(Issue.Assignee), 0, 10));
+
+        Assert.Contains(new GroupSummary(GroupKeys.Null, "", 1), response.Groups);
+        Assert.Contains(new GroupSummary("", "", 1), response.Groups);
+        Assert.Equal(response.Groups.Count, response.Groups.Select(g => g.Key).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task GetGroupPages_ReturnsEachRequestedPage_WithGroupCounts()
+    {
+        var provider = CreateProvider();
+
+        var pages = await provider.GetGroupPagesAsync(new GroupPagesRequest(
+            TitleAscending, [], nameof(Issue.Status),
+            [new GroupPageRequest("Todo", 1, 5), new GroupPageRequest("Done", 0, 1), new GroupPageRequest("Nope", 0, 5)]));
+
+        Assert.Equal(["Todo", "Done", "Nope"], pages.Select(p => p.GroupKey));
+        Assert.Equal([2, 2, 0], pages.Select(p => p.Count));
+        Assert.Equal(["Write docs"], pages[0].Items.Select(i => i.Title));
+        Assert.Equal(["Refactor auth"], pages[1].Items.Select(i => i.Title));
+        Assert.Empty(pages[2].Items);
+    }
+
+    [Fact]
+    public async Task GetGroupPages_NullKey_MatchesNullValues()
+    {
+        var provider = CreateProvider();
+
+        var pages = await provider.GetGroupPagesAsync(new GroupPagesRequest(
+            null, [], nameof(Issue.Assignee), [new GroupPageRequest(GroupKeys.Null, 0, 10)]));
+
+        Assert.Equal(["Write docs"], Assert.Single(pages).Items.Select(i => i.Title));
     }
 }

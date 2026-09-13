@@ -14,7 +14,7 @@
     that embeds FilterPopover's operator/value editor inline (this menu
     supplies the floating panel chrome; FilterPopover just owns the form).
 *@
-<div class="cg-column-menu" @ref="_panelRef" @onclick:stopPropagation="true">
+<div class="cg-column-menu @(IsWideFilterView ? "cg-column-menu-wide" : "")" @ref="_panelRef" @onclick:stopPropagation="true">
     @if (_view == MenuView.Actions)
     {
         @if (Column.Sortable)
@@ -149,6 +149,8 @@
         <FilterPopover TItem="TItem"
                        Column="Column"
                        CurrentFilter="CurrentFilter"
+                       LoadStats="LoadStats"
+                       OnLayoutChanged="RequestReposition"
                        OnApply="OnFilterApplied"
                        OnClear="OnFilterCleared"
                        OnClose="OnClose" />
@@ -187,6 +189,10 @@
 
     [Parameter]
     public EventCallback OnFilterCleared { get; set; }
+
+    /// <summary>Loads this column's stats for its filter editor; returns <c>null</c> when the data source can't provide them.</summary>
+    [Parameter]
+    public Func<CancellationToken, Task<ColumnStats?>>? LoadStats { get; set; }
 
     /// <summary>Raised with this column's property name to toggle it as the group-by column.</summary>
     [Parameter]
@@ -373,4 +379,10 @@
     private void ShowFilterView() => _view = MenuView.Filter;
 
     private void BackToActions() => _view = MenuView.Actions;
+
+    /// <summary>The value, range, and date editors need more room than the action list.</summary>
+    private bool IsWideFilterView => _view == MenuView.Filter && Column.EffectiveFilterKind != FilterKind.Text;
+
+    /// <summary>Repositions the panel after its next render, e.g. once the filter editor's stats arrive and change its size.</summary>
+    private void RequestReposition() => _positionedView = null;
 }

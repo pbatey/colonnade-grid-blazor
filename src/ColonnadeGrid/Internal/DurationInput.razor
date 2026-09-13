@@ -1,0 +1,99 @@
+@namespace ColonnadeGrid.Internal
+@using System.Globalization
+
+@*
+    A duration entered in hours and minutes, or — for long durations — in
+    months, weeks, and days (a month counted as 30 days). Leaving every field
+    blank means no value.
+*@
+<fieldset class="cg-duration-input">
+    <legend class="cg-duration-legend">@Label</legend>
+    @foreach (var unit in Units)
+    {
+        <label class="cg-duration-unit">
+            <input type="number" min="0" step="1" class="cg-duration-number"
+                   aria-label="@($"{Label} {unit.Name}")"
+                   value="@_amounts[unit.Index]"
+                   @onchange="e => OnAmountChangedAsync(unit.Index, e)" />
+            <span>@unit.Suffix</span>
+        </label>
+    }
+</fieldset>
+
+@code {
+    private sealed record Unit(int Index, string Name, string Suffix, double Seconds);
+
+    private static readonly Unit[] ShortUnits = [new(0, "hours", "h", 3600), new(1, "minutes", "m", 60)];
+
+    private static readonly Unit[] LongUnitList =
+    [
+        new(0, "months", "mo", DurationText.SecondsPerMonth),
+        new(1, "weeks", "w", 7 * DurationText.SecondsPerDay),
+        new(2, "days", "d", DurationText.SecondsPerDay)
+    ];
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = "";
+
+    [Parameter]
+    public double? Seconds { get; set; }
+
+    [Parameter]
+    public EventCallback<double?> SecondsChanged { get; set; }
+
+    /// <summary>Months, weeks, and days instead of hours and minutes.</summary>
+    [Parameter]
+    public bool LongUnits { get; set; }
+
+    private string?[] _amounts = new string?[3];
+    private bool _hasSplit;
+    private double? _splitSeconds;
+    private bool _splitLongUnits;
+
+    private Unit[] Units => LongUnits ? LongUnitList : ShortUnits;
+
+    protected override void OnParametersSet()
+    {
+        // Re-split into fields only when the value or units change from outside
+        // (e.g. the slider), so a partly typed entry isn't overwritten.
+        if (_hasSplit && Seconds == _splitSeconds && LongUnits == _splitLongUnits)
+        {
+            return;
+        }
+
+        _hasSplit = true;
+        _splitSeconds = Seconds;
+        _splitLongUnits = LongUnits;
+        _amounts = new string?[3];
+        if (Seconds is not { } total)
+        {
+            return;
+        }
+
+        var smallest = Units[^1].Seconds;
+        var remaining = (long)Math.Round(total / smallest);
+        foreach (var unit in Units)
+        {
+            var perUnit = (long)(unit.Seconds / smallest);
+            _amounts[unit.Index] = (remaining / perUnit).ToString(CultureInfo.InvariantCulture);
+            remaining %= perUnit;
+        }
+    }
+
+    private async Task OnAmountChangedAsync(int index, ChangeEventArgs e)
+    {
+        _amounts[index] = e.Value?.ToString();
+
+        double? seconds = null;
+        foreach (var unit in Units)
+        {
+            if (double.TryParse(_amounts[unit.Index], NumberStyles.Float, CultureInfo.InvariantCulture, out var amount))
+            {
+                seconds = (seconds ?? 0) + Math.Max(0, amount) * unit.Seconds;
+            }
+        }
+
+        _splitSeconds = seconds;
+        await SecondsChanged.InvokeAsync(seconds);
+    }
+}

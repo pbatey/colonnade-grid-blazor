@@ -1,0 +1,35 @@
+.cg-duration-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    min-width: 0;
+}
+
+/* Laid out inline, like the number range's "From"/"To" labels. */
+.cg-duration-legend {
+    float: left;
+    width: 3em;
+    padding: 0;
+}
+
+.cg-duration-unit {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.cg-duration-number {
+    width: 100%;
+    min-width: 0;
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--cg-popover-border-color);
+    border-radius: 4px;
+    padding: 4px 6px;
+}
