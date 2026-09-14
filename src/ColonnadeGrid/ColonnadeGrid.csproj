@@ -8,7 +8,7 @@
 
   <PropertyGroup>
     <PackageId>ColonnadeGrid</PackageId>
-    <Version>1.0.0-preview.1</Version>
+    <Version>1.0.0-preview.2</Version>
     <Description>A Blazor data grid with saved views — show/hide, reorder, resize, sort, filter, and group columns, all in serializable state. Works over an in-memory list or your own data provider, with self-contained CSS (no Bootstrap or Tailwind) themeable through CSS custom properties.</Description>
     <Authors>Phil Batey</Authors>
     <PackageTags>blazor;webassembly;datagrid;grid;table;components</PackageTags>
