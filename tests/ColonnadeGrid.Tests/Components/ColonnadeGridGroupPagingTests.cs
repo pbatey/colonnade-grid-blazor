@@ -191,4 +191,26 @@ public class ColonnadeGridGroupPagingTests : BunitContext
 
         cut.WaitForAssertion(() => Assert.Equal(15, Titles(cut).Count));
     }
+
+    [Fact]
+    public void ExpandedGroups_LoadInRequestsOfAtMostMaxGroupPagesPerRequest()
+    {
+        var provider = new RecordingGroupedDataProvider<Issue>(SampleIssues.CreateMany(23));
+        var cut = RenderGroupedByStatus(provider, p => p
+            .Add(x => x.GroupRowBudget, 100)
+            .Add(x => x.MaxGroupPagesPerRequest, 2));
+
+        cut.WaitForAssertion(() => Assert.Equal(15, Titles(cut).Count));
+        Assert.Equal([2, 1], provider.GroupPagesRequests.Select(r => r.Pages.Count));
+        Assert.Equal(["InProgress", "Done", "Todo"], provider.GroupPagesRequests.SelectMany(r => r.Pages).Select(p => p.GroupKey));
+    }
+
+    [Fact]
+    public void MaxGroupPagesPerRequest_BelowOne_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => Render<IssueGridHost>(p => p
+            .Add(x => x.Items, SampleIssues.Create())
+            .Add(x => x.EnablePaging, true)
+            .Add(x => x.MaxGroupPagesPerRequest, 0)));
+    }
 }

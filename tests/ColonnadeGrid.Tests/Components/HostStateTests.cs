@@ -91,4 +91,36 @@ public class HostStateTests : BunitContext
         cut.WaitForState(() => cut.FindAll("[data-column-id]").Count == 3);
         Assert.Equal(["Title", "Priority", "Assignee"], cut.FindAll("[data-column-id]").Select(h => h.GetAttribute("data-column-id")));
     }
+
+    [Fact]
+    public void MoveLeft_SkipsAStateColumnThatIsNoLongerDeclared()
+    {
+        // "Gone" is listed, visible, but no longer in the markup, so it isn't shown.
+        var saved = GridState.Create(["Title", "Gone", "Status", "Priority", "Assignee"]);
+        var cut = Render<IssueGridHost>(p => p
+            .Add(x => x.Items, SampleIssues.Create())
+            .Add(x => x.State, saved));
+        cut.WaitForState(() => cut.FindAll(".cg-body-row").Count == 4);
+
+        cut.Find("[data-column-id='Status'] .cg-column-menu-button").Click();
+        cut.FindAll(".cg-column-menu-item").Single(item => item.TextContent.Contains("Move left")).Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(["Status", "Title", "Priority", "Assignee"],
+            cut.FindAll("[data-column-id]").Select(h => h.GetAttribute("data-column-id"))));
+    }
+
+    [Fact]
+    public void MoveLeft_IsDisabledForTheFirstShownColumn_WhenOnlyUndeclaredColumnsPrecedeIt()
+    {
+        var saved = GridState.Create(["Gone", "Title", "Status", "Priority", "Assignee"]);
+        var cut = Render<IssueGridHost>(p => p
+            .Add(x => x.Items, SampleIssues.Create())
+            .Add(x => x.State, saved));
+        cut.WaitForState(() => cut.FindAll(".cg-body-row").Count == 4);
+
+        cut.Find("[data-column-id='Title'] .cg-column-menu-button").Click();
+
+        var moveLeft = cut.FindAll(".cg-column-menu-item").Single(item => item.TextContent.Contains("Move left"));
+        Assert.True(((AngleSharp.Html.Dom.IHtmlButtonElement)moveLeft).IsDisabled);
+    }
 }

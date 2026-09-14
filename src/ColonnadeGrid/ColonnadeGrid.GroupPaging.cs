@@ -44,6 +44,18 @@ public partial class ColonnadeGrid<TItem>
     [Parameter]
     public int GroupsPerLoad { get; set; } = DefaultGroupsPerLoad;
 
+    /// <summary>The default for <see cref="MaxGroupPagesPerRequest"/>.</summary>
+    public const int DefaultMaxGroupPagesPerRequest = 50;
+
+    /// <summary>
+    /// The most group pages to ask for in one
+    /// <see cref="IGroupedDataProvider{TItem}.GetGroupPagesAsync"/> call. When more
+    /// expanded groups need rows at once, the grid splits them across calls.
+    /// Lower it to stay within a data source's own limit. Must be at least 1.
+    /// </summary>
+    [Parameter]
+    public int MaxGroupPagesPerRequest { get; set; } = DefaultMaxGroupPagesPerRequest;
+
     /// <summary>A listed group and whatever of its rows are loaded.</summary>
     private sealed class GroupSlot(GroupSummary summary)
     {
@@ -166,7 +178,12 @@ public partial class ColonnadeGrid<TItem>
         catch (Exception ex)
         {
             // Shown in place of the groups, with a retry button (see LoadDataAsync).
-            _loadError = ex.Message;
+            var message = await ReportLoadErrorAsync(ex);
+            if (!cts.IsCancellationRequested)
+            {
+                _loadError = message;
+            }
+
             return;
         }
         finally
@@ -199,7 +216,7 @@ public partial class ColonnadeGrid<TItem>
 
         foreach (var slot in _groupSlots)
         {
-            slot.PageCts?.Cancel();
+            CancelPageLoad(slot);
         }
 
         _groupSlots = null;
@@ -224,8 +241,7 @@ public partial class ColonnadeGrid<TItem>
         {
             if (!expanded.Contains(slot.Summary.Key))
             {
-                slot.PageCts?.Cancel();
-                slot.PageCts = null;
+                CancelPageLoad(slot);
                 slot.Items = null;
                 slot.IsLoading = false;
                 slot.Error = null;
@@ -237,10 +253,11 @@ public partial class ColonnadeGrid<TItem>
             }
         }
 
-        if (toLoad.Count > 0)
-        {
-            await LoadGroupPagesAsync(toLoad, _loadCts.Token);
-        }
+        // At most MaxGroupPagesPerRequest groups per call, with the calls made together.
+        var cancellationToken = _loadCts.Token;
+        await Task.WhenAll(toLoad
+            .Chunk(MaxGroupPagesPerRequest)
+            .Select(chunk => LoadGroupPagesAsync(chunk, cancellationToken)));
     }
 
     /// <summary>
@@ -285,10 +302,11 @@ public partial class ColonnadeGrid<TItem>
         }
         catch (Exception ex)
         {
+            var message = await ReportLoadErrorAsync(ex);
             foreach (var slot in slots.Where(slot => slot.LoadVersion == versions[slot]))
             {
                 slot.IsLoading = false;
-                slot.Error = ex.Message;
+                slot.Error = message;
             }
 
             StateHasChanged();
@@ -344,11 +362,22 @@ public partial class ColonnadeGrid<TItem>
         }
 
         slot.PageIndex = pageIndex;
-        slot.PageCts?.Cancel();
+        CancelPageLoad(slot);
         var cts = CancellationTokenSource.CreateLinkedTokenSource(_loadCts.Token);
         slot.PageCts = cts;
 
         await LoadGroupPagesAsync([slot], cts.Token);
+    }
+
+    /// <summary>
+    /// Cancels a group's own page load and disposes its token source, which is
+    /// linked to <c>_loadCts</c> and stays registered with it until disposed.
+    /// </summary>
+    private static void CancelPageLoad(GroupSlot slot)
+    {
+        slot.PageCts?.Cancel();
+        slot.PageCts?.Dispose();
+        slot.PageCts = null;
     }
 
     private async Task OnShowMoreGroupsAsync()
@@ -380,7 +409,7 @@ public partial class ColonnadeGrid<TItem>
         catch (Exception ex)
         {
             // Shown in the footer; the groups already listed stay, and "Show more" retries.
-            _showMoreGroupsError = ex.Message;
+            _showMoreGroupsError = await ReportLoadErrorAsync(ex);
             return;
         }
         finally

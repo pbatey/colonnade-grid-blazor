@@ -1,3 +1,4 @@
+using System.Globalization;
 using ColonnadeGrid.LargeData.Api.Data;
 using ColonnadeGrid.LargeData.Shared;
 using ColonnadeGrid.Models;
@@ -27,24 +28,34 @@ if (app.Environment.IsDevelopment())
 app.MapStaticAssets();
 
 // One page of rows (ungrouped, or paged across groups).
-app.MapPost("/api/issues/query", (DataRequest request, IssueRepository issues, CancellationToken cancellationToken) =>
-    RunQueryAsync(() => issues.QueryAsync(request, cancellationToken)));
+app.MapPost("/api/issues/query", (DataRequest request, HttpRequest http, IssueRepository issues, CancellationToken cancellationToken) =>
+    RunQueryAsync(() => issues.QueryAsync(request, ClientNow(http), cancellationToken)));
 
 // A batch of groups with their row counts, for paging each group separately.
-app.MapPost("/api/issues/groups", (GroupListRequest request, IssueRepository issues, CancellationToken cancellationToken) =>
-    RunQueryAsync(() => issues.ListGroupsAsync(request, cancellationToken)));
+app.MapPost("/api/issues/groups", (GroupListRequest request, HttpRequest http, IssueRepository issues, CancellationToken cancellationToken) =>
+    RunQueryAsync(() => issues.ListGroupsAsync(request, ClientNow(http), cancellationToken)));
 
 // A page of rows from each of several groups.
-app.MapPost("/api/issues/group-pages", (GroupPagesRequest request, IssueRepository issues, CancellationToken cancellationToken) =>
-    RunQueryAsync(() => issues.GetGroupPagesAsync(request, cancellationToken)));
+app.MapPost("/api/issues/group-pages", (GroupPagesRequest request, HttpRequest http, IssueRepository issues, CancellationToken cancellationToken) =>
+    RunQueryAsync(() => issues.GetGroupPagesAsync(request, ClientNow(http), cancellationToken)));
 
 // A column's range, empty count, and (for value lists) distinct values, for its filter editor.
-app.MapPost("/api/issues/column-stats", (ColumnStatsRequest request, IssueRepository issues, CancellationToken cancellationToken) =>
-    RunQueryAsync(() => issues.GetColumnStatsAsync(request, cancellationToken)));
+app.MapPost("/api/issues/column-stats", (ColumnStatsRequest request, HttpRequest http, IssueRepository issues, CancellationToken cancellationToken) =>
+    RunQueryAsync(() => issues.GetColumnStatsAsync(request, ClientNow(http), cancellationToken)));
 
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// "Now" for relative date filters ("within the last 30 days"): the browser's
+// local clock, which the client sends, so they match the in-memory provider
+// wherever the API runs. Falls back to the API's own clock.
+static DateTime ClientNow(HttpRequest request) =>
+    DateTime.SpecifyKind(
+        DateTime.TryParse(request.Headers["X-Client-Now"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var now)
+            ? now
+            : DateTime.Now,
+        DateTimeKind.Unspecified);
 
 // Turns the failures a sample user is likely to hit into readable problem responses.
 static async Task<IResult> RunQueryAsync<T>(Func<Task<T>> query)

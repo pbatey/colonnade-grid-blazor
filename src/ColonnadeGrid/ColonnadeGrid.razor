@@ -12,6 +12,8 @@
     @Columns
 </CascadingValue>
 
+@* Rendered after the columns above have registered; see AfterColumns. *@
+<AfterColumns>
 <div class="cg-root @(CompactMode ? "cg-root-compact" : "")">
     @if (_openColumnMenuId is not null || _columnsMenuOpen)
     {
@@ -114,6 +116,7 @@
                                             CurrentFilter="GetActiveFilter(column)"
                                             LoadStats="cancellationToken => LoadColumnStatsAsync(column, cancellationToken)"
                                             CanHide="VisibleColumns.Count > 1"
+                                            ShownColumnIds="VisibleColumns.Select(c => c.Id).ToHashSet()"
                                             OpenToFilterView="_openColumnMenuOpensToFilterView"
                                             OnSortChanged="OnSortChangedAsync"
                                             OnFilterApplied="OnFilterAppliedAsync"
@@ -283,3 +286,4 @@
         }
     }
 </div>
+</AfterColumns>

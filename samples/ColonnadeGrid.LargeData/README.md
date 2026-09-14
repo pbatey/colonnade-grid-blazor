@@ -96,7 +96,8 @@ The rest applies to every endpoint:
   ascending sorts list nulls first.
 - **The filter editors' operators** become plain comparisons: `In` is
   `col IN (...)`, `Between` is `col >= from AND col <= to` (skipping an open
-  end), and `WithinLast` is a timestamp range ending at the API's current time.
+  end), and `WithinLast` is a timestamp range ending at the browser's current time, which the client sends
+  as an `X-Client-Now` header so it matches the in-memory provider.
   `IncludeEmpty` adds `col IS NULL OR ...`. Durations are `interval` columns,
   sent and read as `TimeSpan`.
 - **Paging is stable.** `id` is always the final sort key, so rows with equal

@@ -214,24 +214,13 @@
        relative to font-size. */
     font-size: 12px;
     color: var(--cg-muted-text-color);
-    /* `relative`, not `static` — kept even when EnableStickyHeader is false
-       (see .cg-header-row-sticky, which overrides this to `sticky`)
-       because z-index below only has any effect on a positioned element (or
-       a flex/grid item, which this row isn't — its parent .cg-grid is
-       plain `display: block`). Dropping to `static` when non-sticky would
-       silently break the stacking-context fix described on
-       .cg-dropdown-backdrop: a per-column "..." dropdown could open with
-       the click-away backdrop painting over it again, since z-index:2 would
-       simply be ignored on a statically positioned element. */
+    /* `relative` even when not sticky (.cg-header-row-sticky overrides it):
+       z-index only applies to a positioned element, and the dropdowns rely on
+       this row's z-index (see .cg-dropdown-backdrop). */
     position: relative;
-    /* Must be higher than .cg-dropdown-backdrop's z-index (see below) — a
-       dropdown anchored inside this row (ColumnMenu/ColumnsMenu) needs the
-       whole row, as a stacking-context unit, to paint above the backdrop;
-       the dropdown's own higher z-index only settles ordering *within* this
-       row's children, not against siblings of this row like the backdrop.
-       This holds regardless of EnableStickyHeader, which is exactly why
-       z-index/position:relative live here and not on .cg-header-row-sticky
-       alongside position:sticky. */
+    /* Above .cg-dropdown-backdrop, so the dropdowns inside this row can be
+       clicked. Here rather than on .cg-header-row-sticky, since it's needed
+       whether or not the header sticks. */
     z-index: 2;
     /* Overrides .cg-row's own 1px border-bottom: the header's separator is
        drawn per-cell instead (see .cg-header-cell/.cg-select-cell/
@@ -457,27 +446,11 @@
 
 .cg-dropdown-backdrop {
     /*
-      Invisible click-catcher for closing an open dropdown on an outside
-      click — see the markup comment in ColonnadeGrid.razor.
-
-      z-index:1, deliberately LOWER than .cg-header-row's z-index:2 — not a
-      typo. The dropdown panels (ColumnMenu/ColumnsMenu, z-index:10) are
-      nested *inside* the header row, so their z-index only settles ordering
-      among the header row's own children; it does nothing to establish the
-      header row *as a whole* above this backdrop, which lives outside that
-      row entirely. Stacking context comparisons happen ancestor-first: two
-      elements in different stacking-context lineages are ordered by
-      comparing their nearest stacking-context-establishing ancestors, not
-      by whichever descendant happens to have the biggest z-index number.
-      An earlier version of this rule used z-index:9 (with the header row at
-      1) on the assumption that the dropdown's z-index:10 would simply "win"
-      against this backdrop since 10 > 9 — a real, shipped bug (confirmed via
-      real click hit-testing in a browser, not just bUnit's simulated clicks,
-      which invoke a target element's handler directly and so can't catch
-      this): every click inside an open dropdown was silently swallowed by
-      this backdrop instead of reaching the menu item underneath.
-      Still safely above ordinary body rows (which set no z-index at all),
-      so outside clicks on the table body correctly reach this backdrop.
+      Invisible click-catcher that closes an open dropdown on an outside click.
+      z-index:1 is deliberately below .cg-header-row's 2: the dropdowns sit
+      inside the header row, so only the row's own z-index can lift them above
+      this backdrop (see "Dropdowns close on an outside click" in
+      docs/architecture.md). Still above body rows, which set no z-index.
     */
     position: fixed;
     inset: 0;

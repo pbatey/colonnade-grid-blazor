@@ -177,6 +177,14 @@
     [Parameter]
     public bool CanHide { get; set; } = true;
 
+    /// <summary>
+    /// The ids of the columns the grid is showing. "Move left/right" swap with
+    /// the nearest of these, skipping hidden columns and any the state lists but
+    /// the markup no longer declares.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public IReadOnlySet<string> ShownColumnIds { get; set; } = new HashSet<string>();
+
     /// <summary>When true, the menu opens directly to its "Filter by values…" view instead of the default action list — the filter-indicator icon's shortcut.</summary>
     [Parameter]
     public bool OpenToFilterView { get; set; }
@@ -284,7 +292,7 @@
             var columns = State.Columns.ToList();
             for (var i = CurrentIndex - 1; i >= 0; i--)
             {
-                if (columns[i].Visible)
+                if (ShownColumnIds.Contains(columns[i].Id))
                 {
                     return i;
                 }
@@ -302,7 +310,7 @@
             var columns = State.Columns.ToList();
             for (var i = CurrentIndex + 1; i < columns.Count; i++)
             {
-                if (columns[i].Visible)
+                if (ShownColumnIds.Contains(columns[i].Id))
                 {
                     return i;
                 }

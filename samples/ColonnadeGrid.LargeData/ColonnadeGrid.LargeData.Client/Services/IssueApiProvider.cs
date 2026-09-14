@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using ColonnadeGrid.Abstractions;
@@ -77,7 +78,16 @@ public sealed class IssueApiProvider(HttpClient http, Action<IssueLoadResult> on
         string error;
         try
         {
-            using var response = await http.PostAsJsonAsync(url, request, LargeDataJson.Options, cancellationToken);
+            using var message = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(request, options: LargeDataJson.Options)
+            };
+
+            // The API's "now" for relative date filters, so they use the
+            // browser's clock, as the in-memory provider does.
+            message.Headers.Add("X-Client-Now", DateTime.Now.ToString("s", CultureInfo.InvariantCulture));
+
+            using var response = await http.SendAsync(message, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<TResult>(LargeDataJson.Options, cancellationToken)

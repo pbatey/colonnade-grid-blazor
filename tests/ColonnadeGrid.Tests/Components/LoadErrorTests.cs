@@ -120,4 +120,89 @@ public class LoadErrorTests : BunitContext
         cut.WaitForAssertion(() => Assert.Equal(["InProgress", "Done"], Headers(cut)));
         Assert.Empty(cut.FindAll(".cg-group-footer-error"));
     }
+
+    /// <summary>Serves rows, but fails every column stats request.</summary>
+    private sealed class FailingStatsProvider(IEnumerable<Issue> items) : IDataProvider<Issue>, IColumnStatsProvider<Issue>
+    {
+        private readonly InMemoryDataProvider<Issue> _inner = new(items);
+
+        public Task<DataResponse<Issue>> GetDataAsync(DataRequest request, CancellationToken cancellationToken = default) =>
+            _inner.GetDataAsync(request, cancellationToken);
+
+        public Task<ColumnStats> GetColumnStatsAsync(ColumnStatsRequest request, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("stats boom");
+    }
+
+    [Fact]
+    public void FailedLoad_RaisesOnLoadError_AndShowsTheFormattedMessage()
+    {
+        var errors = new List<Exception>();
+        var provider = new FailingDataProvider(SampleIssues.Create()) { FailuresRemaining = 1 };
+        var cut = Render<IssueGridHost>(p => p
+            .Add(x => x.DataProvider, (IDataProvider<Issue>)provider)
+            .Add(x => x.RowKey, TitleKey)
+            .Add(x => x.OnLoadError, (Exception e) => errors.Add(e))
+            .Add(x => x.FormatLoadError, (Func<Exception, string>)(_ => "Something went wrong.")));
+
+        cut.WaitForState(() => cut.FindAll(".cg-load-error").Count == 1);
+        Assert.Contains("Something went wrong.", cut.Find(".cg-load-error").TextContent);
+        Assert.DoesNotContain("boom", cut.Find(".cg-load-error").TextContent);
+        Assert.Equal("boom", Assert.Single(errors).Message);
+    }
+
+    [Fact]
+    public void FailedGroupPageLoad_RaisesOnLoadError_AndShowsTheFormattedMessage()
+    {
+        var errors = new List<Exception>();
+        var provider = new RecordingGroupedDataProvider<Issue>(SampleIssues.CreateMany(23)) { PagesFailuresRemaining = 1 };
+        var cut = Render<IssueGridHost>(p => p
+            .Add(x => x.DataProvider, (IDataProvider<Issue>)provider)
+            .Add(x => x.RowKey, TitleKey)
+            .Add(x => x.EnablePaging, true)
+            .Add(x => x.State, GridState.Create(["Title", "Status", "Priority", "Assignee"]).SetGroupBy("Status"))
+            .Add(x => x.OnLoadError, (Exception e) => errors.Add(e))
+            .Add(x => x.FormatLoadError, (Func<Exception, string>)(_ => "Something went wrong.")));
+
+        cut.WaitForState(() => cut.FindAll(".cg-group-error").Count > 0);
+        Assert.All(cut.FindAll(".cg-group-error"), error => Assert.Contains("Something went wrong.", error.TextContent));
+        Assert.Equal("boom", Assert.Single(errors).Message);
+    }
+
+    [Fact]
+    public void FailedShowMoreGroups_ShowsTheFormattedMessage()
+    {
+        var provider = new RecordingGroupedDataProvider<Issue>(SampleIssues.CreateMany(23));
+        var cut = Render<IssueGridHost>(p => p
+            .Add(x => x.DataProvider, (IDataProvider<Issue>)provider)
+            .Add(x => x.RowKey, TitleKey)
+            .Add(x => x.EnablePaging, true)
+            .Add(x => x.GroupsPerLoad, 1)
+            .Add(x => x.State, GridState.Create(["Title", "Status", "Priority", "Assignee"]).SetGroupBy("Status"))
+            .Add(x => x.FormatLoadError, (Func<Exception, string>)(_ => "Something went wrong.")));
+        cut.WaitForAssertion(() => Assert.Equal(["InProgress"], Headers(cut)));
+
+        provider.GroupListFailuresRemaining = 1;
+        cut.Find(".cg-group-footer-more").Click();
+
+        cut.WaitForState(() => cut.FindAll(".cg-group-footer-error").Count == 1);
+        Assert.Contains("Something went wrong.", cut.Find(".cg-group-footer-error").TextContent);
+    }
+
+    [Fact]
+    public void FailedColumnStatsLoad_RaisesOnLoadError()
+    {
+        var errors = new List<Exception>();
+        var cut = Render<IssueGridHost>(p => p
+            .Add(x => x.DataProvider, (IDataProvider<Issue>)new FailingStatsProvider(SampleIssues.Create()))
+            .Add(x => x.RowKey, TitleKey)
+            .Add(x => x.OnLoadError, (Exception e) => errors.Add(e)));
+        cut.WaitForState(() => cut.FindAll(".cg-body-row").Count == 4);
+
+        // Priority is a number, so its filter editor loads the column's stats.
+        cut.Find("[data-column-id='Priority'] .cg-column-menu-button").Click();
+        cut.FindAll(".cg-column-menu-item").Single(item => item.TextContent.Contains("Filter by values")).Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Couldn't load", cut.Find(".cg-filter-status").TextContent));
+        Assert.Equal("stats boom", Assert.Single(errors).Message);
+    }
 }

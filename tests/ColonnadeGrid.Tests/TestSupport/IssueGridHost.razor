@@ -26,7 +26,10 @@
                 PageSizeOptions="PageSizeOptions"
                 GroupPageSize="GroupPageSize"
                 GroupRowBudget="GroupRowBudget"
-                GroupsPerLoad="GroupsPerLoad">
+                GroupsPerLoad="GroupsPerLoad"
+                MaxGroupPagesPerRequest="MaxGroupPagesPerRequest"
+                OnLoadError="OnLoadError"
+                FormatLoadError="FormatLoadError">
     <Columns>
         <GridColumn Field="(Issue x) => x.Title" Title="Title" Sortable="true" Filterable="true" />
         <GridColumn Field="(Issue x) => x.Status" Title="Status" Groupable="true" />
@@ -53,4 +56,7 @@
     [Parameter] public int GroupPageSize { get; set; } = global::ColonnadeGrid.ColonnadeGrid<Issue>.DefaultGroupPageSize;
     [Parameter] public int? GroupRowBudget { get; set; }
     [Parameter] public int GroupsPerLoad { get; set; } = global::ColonnadeGrid.ColonnadeGrid<Issue>.DefaultGroupsPerLoad;
+    [Parameter] public int MaxGroupPagesPerRequest { get; set; } = global::ColonnadeGrid.ColonnadeGrid<Issue>.DefaultMaxGroupPagesPerRequest;
+    [Parameter] public EventCallback<Exception> OnLoadError { get; set; }
+    [Parameter] public Func<Exception, string>? FormatLoadError { get; set; }
 }

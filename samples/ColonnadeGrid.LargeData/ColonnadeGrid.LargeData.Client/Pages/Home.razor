@@ -29,11 +29,6 @@
         }
         <span class="toolbar-end">Selected: @_selectedKeys.Count.ToString("N0")</span>
     </div>
-
-    @if (_lastLoad?.Error is { } error)
-    {
-        <div class="error" role="alert">@error</div>
-    }
 </div>
 
 @*

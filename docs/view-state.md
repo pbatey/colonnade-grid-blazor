@@ -115,8 +115,9 @@ navigation-away.)
 
 Passing a different `State` later — like the saved view above, which is read
 after the grid has already loaded — reloads the rows when its sort, filters,
-or group-by differ from what's showing. The current page isn't reset; if it no
-longer exists, the grid shows the last page. The grid compares `State` with
+or group-by differ from what's showing. With paging on, that also returns to
+the first page, as the same change from the menus does — unless you pass a new
+`PageIndex` in the same render, e.g. restoring both a view and a page. The grid compares `State` with
 the last value you passed, not with its own current state, so if you pass
 `State` without binding `StateChanged`, re-rendering your page with the same
 instance won't undo the user's changes; pass a new instance to replace them.

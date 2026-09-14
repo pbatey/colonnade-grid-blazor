@@ -66,6 +66,8 @@ public partial class GridColumn<TItem, TProp>
     [Parameter]
     public RenderFragment? HeaderTemplate { get; set; }
 
+    private (Expression<Func<TItem, TProp>> Field, Func<TItem, TProp> Accessor)? _compiled;
+
     protected override void OnParametersSet()
     {
         if (Context is null)
@@ -75,7 +77,10 @@ public partial class GridColumn<TItem, TProp>
         }
 
         var propertyName = PropertyNameExtractor.GetPropertyName(Field);
-        var accessor = Field.Compile();
+
+        // This runs on every grid render; don't recompile Field each time.
+        var accessor = ColumnAccessors<TItem, TProp>.For(Field, _compiled);
+        _compiled = (Field, accessor);
 
         var descriptor = new TypedGridColumn<TItem, TProp>(accessor, propertyName, Title, Id, Format)
         {

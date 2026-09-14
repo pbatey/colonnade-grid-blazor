@@ -24,7 +24,8 @@ below the rows:
   the number of pages. This works the same for `Items` and for an
   `IDataProvider<TItem>`, which does the paging itself.
 - **Moving between pages.** A new sort, filter, or group-by returns to the first
-  page. A new page size keeps the first row that was showing on screen. If the
+  page, whether the user makes it or a host-provided `State` does (unless the
+  host passes a new `PageIndex` in the same render). A new page size keeps the first row that was showing on screen. If the
   current page stops existing — the data shrank, or a host passed a
   `PageIndex` past the end — the grid moves to the last page. Each of these
   raises `PageIndexChanged`/`PageSizeChanged`.
@@ -73,6 +74,7 @@ does), groups are loaded and paged one at a time instead of as one long list:
 | `GroupPageSize` | `int` | `10` | Rows per page inside each group. |
 | `GroupRowBudget` | `int?` | `PageSize` | How many rows groups may load when they first appear (see below). |
 | `GroupsPerLoad` | `int` | `50` | How many groups each batch lists. |
+| `MaxGroupPagesPerRequest` | `int` | `50` | The most group pages one `GetGroupPagesAsync` call asks for; more are split across calls. |
 
 - **The row budget** bounds how much the browser holds when a view opens.
   Going through the groups in order, a group starts expanded if its first page
@@ -91,7 +93,8 @@ does), groups are loaded and paged one at a time instead of as one long list:
   motion.
 - **Failures.** If a group's rows fail to load, the error shows inside that
   group with a Retry button, and the rest of the grid keeps working. A failure
-  listing the groups themselves propagates like any other load.
+  listing the groups shows in place of them, and a failed "Show more" shows in
+  the footer (see [When a load fails](data-sources.md#when-a-load-fails)).
 - **Changing the view.** A new sort, filter, or group-by reloads the group list
   and returns every group to its first page. Each page load refreshes the
   group's header count, and a group whose current page no longer exists moves
@@ -115,8 +118,9 @@ public interface IGroupedDataProvider<TItem> : IDataProvider<TItem>
   grouped column, order the groups by it.
 - **`GetGroupPagesAsync`** returns a page for each requested
   `GroupPageRequest(GroupKey, Skip, Take)`, with the group's current `Count` (0,
-  with no items, for a key that matches nothing). A single call can ask for many
-  groups, so answer it in one query where you can — the [large-data
+  with no items, for a key that matches nothing). A single call can ask for up to
+  `MaxGroupPagesPerRequest` groups (50 by default; lower it to match a limit of
+  your own), so answer it in one query where you can — the [large-data
   sample](../samples/ColonnadeGrid.LargeData) uses one SQL `UNION ALL` with a
   branch per group.
 - **Keys are opaque to the grid**: return whatever identifies a group, and accept

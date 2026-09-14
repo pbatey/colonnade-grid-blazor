@@ -102,15 +102,6 @@ code {
     font-variant-numeric: tabular-nums;
 }
 
-.error {
-    margin-bottom: 8px;
-    padding: 8px 12px;
-    border: 1px solid #ff818266;
-    border-radius: 6px;
-    background: #ffebe9;
-    color: #82071e;
-    font-size: 14px;
-}
 
 /* Bounded, internally scrolling box: keeps the sticky header and pager in view on long pages. */
 .table-container {

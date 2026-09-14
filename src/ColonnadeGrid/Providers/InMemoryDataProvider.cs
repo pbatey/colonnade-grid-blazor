@@ -148,7 +148,8 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
         IEnumerable<TItem> filtered = _items;
         foreach (var filter in filters)
         {
-            filtered = filtered.Where(item => MatchesFilter(item, filter, now));
+            var accessor = GetAccessor(filter.PropertyName);
+            filtered = filtered.Where(item => MatchesFilter(accessor(item), filter, now));
         }
 
         return sort is { Direction: not SortDirection.None } activeSort
@@ -173,7 +174,9 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
     /// column produces alphabetically/naturally ordered groups "for free").
     /// Grouping by the key rather than the raw value keeps <c>null</c> and
     /// <c>""</c> apart (see <see cref="GroupKeys.Null"/>) while guaranteeing
-    /// every group has a distinct key.
+    /// every group has a distinct key. The display text is the value's
+    /// <c>ToString()</c> in the current culture: it's for showing, so unlike the
+    /// key it follows the user's culture.
     /// </summary>
     private static List<(string Key, string DisplayText, List<TItem> Items)> GroupByKey(
         IEnumerable<TItem> items,
@@ -235,11 +238,8 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
         return (items.Skip(start).Take(end - start).ToList(), pageGroups);
     }
 
-    private static bool MatchesFilter(TItem item, FilterDescriptor filter, DateTimeOffset now)
+    private static bool MatchesFilter(object? rawValue, FilterDescriptor filter, DateTimeOffset now)
     {
-        var accessor = GetAccessor(filter.PropertyName);
-        var rawValue = accessor(item);
-
         switch (filter.Operator)
         {
             case FilterOperator.IsEmpty:

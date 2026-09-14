@@ -83,8 +83,12 @@ depends on what failed:
 - **`GetGroupsAsync` for "Show more"** — in the footer; the groups already
   listed stay, and the "Show more" button retries.
 
-The message is shown to the user as-is, so throw exceptions whose `Message`
-is fit for them rather than, say, raw SQL errors.
+By default the message is the exception's `Message`, shown to the user as-is.
+Set `FormatLoadError` (`Func<Exception, string>`) to show something else — a
+generic message, say, when exceptions can carry server details — and
+`OnLoadError` (`EventCallback<Exception>`) to log failures. `OnLoadError` is
+also raised when a column's filter stats fail to load; the filter editor shows
+its own message for those.
 
 ## The grouped-response contract
 

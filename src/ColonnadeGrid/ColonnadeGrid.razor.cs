@@ -102,6 +102,22 @@ public partial class ColonnadeGrid<TItem>
     [Parameter]
     public EventCallback<IReadOnlySet<string>> SelectedKeysChanged { get; set; }
 
+    /// <summary>
+    /// Raised with the exception when the data source fails to load rows, groups,
+    /// or a column's filter stats. The grid shows the failure itself either way;
+    /// use this to log it.
+    /// </summary>
+    [Parameter]
+    public EventCallback<Exception> OnLoadError { get; set; }
+
+    /// <summary>
+    /// Turns a data source failure into the message shown to the user. Defaults
+    /// to the exception's <see cref="Exception.Message"/>, which can reveal more
+    /// than a user should see.
+    /// </summary>
+    [Parameter]
+    public Func<Exception, string>? FormatLoadError { get; set; }
+
     private readonly GridContext<TItem> _context = new();
 
     private GridState? _state;
@@ -119,6 +135,7 @@ public partial class ColonnadeGrid<TItem>
     private bool _lastEnablePaging;
     private bool _isLoading;
     private bool _initialized;
+    private bool _disposed;
     private bool _columnsMenuOpen;
     private string? _openColumnMenuId;
     private bool _openColumnMenuOpensToFilterView;
@@ -167,6 +184,7 @@ public partial class ColonnadeGrid<TItem>
         ValidateParameters();
 
         var providerChanged = UpdateEffectiveProvider();
+        var pageIndexParameterChanged = PageIndex != _lastPageIndexParameter;
         var pagingChanged = UpdatePagingFromParameters();
         var (queryChanged, groupExpansionChanged) = UpdateStateFromParameter();
 
@@ -180,6 +198,14 @@ public partial class ColonnadeGrid<TItem>
         if (!_initialized)
         {
             return;
+        }
+
+        // A new sort, filter, or group-by returns to the first page, as it does
+        // from the menus (see SetStateAsync) — unless the host chose a page in
+        // this same update, e.g. restoring both a view and a page from a URL.
+        if (queryChanged && EnablePaging && !pageIndexParameterChanged)
+        {
+            await SetPageIndexAsync(0);
         }
 
         if (providerChanged || pagingChanged || groupPagingChanged || queryChanged)
@@ -297,12 +323,12 @@ public partial class ColonnadeGrid<TItem>
                 $"'{nameof(PageSize)}' must be at least 1 when '{nameof(EnablePaging)}' is set (was {PageSize}).");
         }
 
-        if (EnablePaging && (GroupPageSize < 1 || GroupsPerLoad < 1 || GroupRowBudget < 0))
+        if (EnablePaging && (GroupPageSize < 1 || GroupsPerLoad < 1 || MaxGroupPagesPerRequest < 1 || GroupRowBudget < 0))
         {
             throw new InvalidOperationException(
-                $"When '{nameof(EnablePaging)}' is set, '{nameof(GroupPageSize)}' and '{nameof(GroupsPerLoad)}' must be at " +
-                $"least 1 and '{nameof(GroupRowBudget)}' can't be negative " +
-                $"(were {GroupPageSize}, {GroupsPerLoad}, and {GroupRowBudget?.ToString() ?? "null"}).");
+                $"When '{nameof(EnablePaging)}' is set, '{nameof(GroupPageSize)}', '{nameof(GroupsPerLoad)}', and " +
+                $"'{nameof(MaxGroupPagesPerRequest)}' must be at least 1 and '{nameof(GroupRowBudget)}' can't be negative " +
+                $"(were {GroupPageSize}, {GroupsPerLoad}, {MaxGroupPagesPerRequest}, and {GroupRowBudget?.ToString() ?? "null"}).");
         }
     }
 
@@ -359,29 +385,13 @@ public partial class ColonnadeGrid<TItem>
             // without it, so a null/failed module load (e.g. no JS engine
             // available, as in a bUnit test host) degrades gracefully rather
             // than throwing.
-            try
+            if (!_disposed)
             {
-                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ColonnadeGrid/colonnadeGrid.js");
-                if (_module is not null)
-                {
-                    _selfRef = DotNetObjectReference.Create(this);
-                    _resizeHandle = await _module.InvokeAsync<IJSObjectReference>("initResize", _gridRef, _selfRef);
-                    // Always attached, regardless of EnableStickyHeader's
-                    // current value: that parameter only gates the CSS (see
-                    // .cg-header-row-sticky/.cg-header-row-stuck), so
-                    // toggling it at runtime — even starting disabled and
-                    // enabling it later — works correctly without needing
-                    // to tear down/recreate this observer to match.
-                    _stickyShadowHandle = await _module.InvokeAsync<IJSObjectReference>(
-                        "initStickyHeaderShadow", _stickySentinelRef, _headerRowRef);
-                }
-            }
-            catch (JSException)
-            {
+                await InitJsAsync();
             }
         }
 
-        if (_module is not null && EnableRowSelection)
+        if (_module is not null && EnableRowSelection && !_disposed)
         {
             try
             {
@@ -390,6 +400,48 @@ public partial class ColonnadeGrid<TItem>
             catch (JSException)
             {
             }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    private async Task InitJsAsync()
+    {
+        try
+        {
+            // A local, not the field: DisposeAsync can run during any await
+            // here and clear the fields.
+            var module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ColonnadeGrid/colonnadeGrid.js");
+            _module = module;
+            if (module is not null && !_disposed)
+            {
+                _selfRef = DotNetObjectReference.Create(this);
+                _resizeHandle = await module.InvokeAsync<IJSObjectReference>("initResize", _gridRef, _selfRef);
+            }
+
+            // Always attached, regardless of EnableStickyHeader's current
+            // value: that parameter only gates the CSS (see
+            // .cg-header-row-sticky/.cg-header-row-stuck), so toggling it at
+            // runtime works without tearing down/recreating this observer.
+            if (module is not null && !_disposed)
+            {
+                _stickyShadowHandle = await module.InvokeAsync<IJSObjectReference>(
+                    "initStickyHeaderShadow", _stickySentinelRef, _headerRowRef);
+            }
+        }
+        catch (JSException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        // Disposed while this was awaiting: DisposeAsync ran before these
+        // existed, so their document listeners would otherwise never be removed.
+        if (_disposed)
+        {
+            await DisposeJsObjectsAsync();
         }
     }
 
@@ -439,8 +491,13 @@ public partial class ColonnadeGrid<TItem>
         {
             // Shown in place of the rows, with a retry button, rather than
             // thrown: an exception escaping a component ends a Blazor Server circuit.
-            _loadError = ex.Message;
-            _data = null;
+            var message = await ReportLoadErrorAsync(ex);
+            if (!cts.IsCancellationRequested)
+            {
+                _loadError = message;
+                _data = null;
+            }
+
             return;
         }
         finally
@@ -473,6 +530,17 @@ public partial class ColonnadeGrid<TItem>
     }
 
     private Task RetryLoadAsync() => LoadDataAsync();
+
+    /// <summary>Reports a data source failure to <see cref="OnLoadError"/> and returns the message to show for it.</summary>
+    private async Task<string> ReportLoadErrorAsync(Exception exception)
+    {
+        if (OnLoadError.HasDelegate)
+        {
+            await OnLoadError.InvokeAsync(exception);
+        }
+
+        return FormatLoadError?.Invoke(exception) ?? exception.Message;
+    }
 
     private async Task SetPageIndexAsync(int pageIndex)
     {
@@ -693,7 +761,16 @@ public partial class ColonnadeGrid<TItem>
             column.PropertyName,
             _state.Filters.Where(f => f.PropertyName != column.PropertyName).ToList(),
             IncludeValueCounts: column.EffectiveFilterKind == FilterKind.Values);
-        return await provider.GetColumnStatsAsync(request, cancellationToken);
+        try
+        {
+            return await provider.GetColumnStatsAsync(request, cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The filter editor shows the failure; the host still hears about it.
+            await ReportLoadErrorAsync(ex);
+            throw;
+        }
     }
 
     /// <summary>Flips the given (already-active) sort column between Ascending and Descending — a quick alternative to the "..." menu's Sort ascending/descending items.</summary>
@@ -762,19 +839,11 @@ public partial class ColonnadeGrid<TItem>
         _state is null ? Task.CompletedTask : SetStateAsync(_state.SetColumnWidth(columnId, width), reload: false);
 
     /// <summary>
-    /// Builds the shared <c>grid-template-columns</c> track list. Header,
-    /// body, and group-header rows all use this exact same track list —
-    /// including the trailing 40px track for the header's "+" add-column
-    /// button, which body/group rows also reserve (as an empty cell) even
-    /// though they don't show anything in it. This has to be unconditional:
-    /// when a row is wider than its own content (via .cg-row's
-    /// width:max-content/min-width:100%), each `1fr` track's resolved pixel
-    /// width depends on how many *other* tracks are competing for the same
-    /// row width — so a header row with one extra fixed-width track than
-    /// body rows would resolve its `1fr` columns to a different width than
-    /// the body's `1fr` columns of the exact same row width, visibly
-    /// misaligning every column. Giving every row the identical track list
-    /// is what keeps them pixel-for-pixel aligned.
+    /// Builds the <c>grid-template-columns</c> track list shared by every row —
+    /// header, body, and group header — including the trailing track for the
+    /// header's "+" button, which the other rows leave empty. Rows with
+    /// different track lists resolve their <c>1fr</c> tracks to different
+    /// widths and misalign (see docs/architecture.md).
     /// </summary>
     private string BuildGridTemplateColumns()
     {
@@ -799,20 +868,9 @@ public partial class ColonnadeGrid<TItem>
             }
         }
 
-        // Ordinarily a fixed 40px: with at least one `1fr` data column above,
-        // that column already absorbs any leftover row width, so the
-        // trailing track just needs to be exactly wide enough for the "+"
-        // button. But once every column has an explicit fixed width (the
-        // user has resized them all), there's no `1fr` track left to soak up
-        // the remainder between the tracks' total width and the row's own
-        // (100%-of-container) width — leaving a gap past the last column
-        // with no cell, and so no border, drawn across it (the header row's
-        // own border-bottom was intentionally moved to per-cell borders — see
-        // .cg-header-cell/.cg-select-cell/.cg-add-column-cell in
-        // ColonnadeGrid.razor.css — so nothing else fills that gap). Making
-        // this track `minmax(40px, 1fr)` only in that all-fixed-widths case
-        // lets the add-column cell itself absorb the remainder, so its own
-        // border-bottom reaches the row's true right edge.
+        // 40px for the "+" button, unless every column has a fixed width: then
+        // no `1fr` column absorbs the leftover row width, so this track does,
+        // carrying its bottom border to the row's right edge.
         tracks.Add(anyFlexibleColumn ? "40px" : "minmax(40px, 1fr)");
 
         return $"grid-template-columns: {string.Join(' ', tracks)};";
@@ -820,46 +878,62 @@ public partial class ColonnadeGrid<TItem>
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         _loadCts?.Cancel();
+        await DisposeJsObjectsAsync();
+    }
 
-        if (_resizeHandle is not null)
+    /// <summary>
+    /// Removes the JS listeners and releases the JS references. Every field is
+    /// cleared before the first await, so a second call running meanwhile
+    /// (DisposeAsync racing first-render setup) never releases one twice.
+    /// </summary>
+    private async Task DisposeJsObjectsAsync()
+    {
+        var resizeHandle = _resizeHandle;
+        var stickyShadowHandle = _stickyShadowHandle;
+        var module = _module;
+        var selfRef = _selfRef;
+        _resizeHandle = null;
+        _stickyShadowHandle = null;
+        _module = null;
+        _selfRef = null;
+
+        await DisposeJsHandleAsync(resizeHandle);
+        await DisposeJsHandleAsync(stickyShadowHandle);
+        if (module is not null)
         {
             try
             {
-                await _resizeHandle.InvokeVoidAsync("dispose");
-            }
-            catch (JSDisconnectedException)
-            {
-                // Circuit/runtime already gone; nothing to clean up on the JS side.
-            }
-
-            await _resizeHandle.DisposeAsync();
-        }
-
-        if (_stickyShadowHandle is not null)
-        {
-            try
-            {
-                await _stickyShadowHandle.InvokeVoidAsync("dispose");
-            }
-            catch (JSDisconnectedException)
-            {
-            }
-
-            await _stickyShadowHandle.DisposeAsync();
-        }
-
-        if (_module is not null)
-        {
-            try
-            {
-                await _module.DisposeAsync();
+                await module.DisposeAsync();
             }
             catch (JSDisconnectedException)
             {
             }
         }
 
-        _selfRef?.Dispose();
+        selfRef?.Dispose();
+    }
+
+    /// <summary>Calls a handle's own <c>dispose()</c>, removing its listeners, then releases the reference.</summary>
+    private static async Task DisposeJsHandleAsync(IJSObjectReference? handle)
+    {
+        if (handle is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit/runtime already gone; nothing to clean up on the JS side.
+        }
     }
 }

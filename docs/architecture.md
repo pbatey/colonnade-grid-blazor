@@ -97,7 +97,14 @@
   that context's list immediately before rendering its `Columns` content on
   every render, and each `GridColumn` re-registers itself — this preserves
   markup order and supports conditionally-rendered (`@if`) columns without
-  needing any `IDisposable`-based unregistration.
+  needing any `IDisposable`-based unregistration. The grid's own markup is
+  rendered inside `AfterColumns`, a pass-through component placed after the
+  `CascadingValue`. Columns register when their parameters are set, which
+  happens while the `CascadingValue` renders; markup rendered directly in the
+  grid would already have read the previous render's columns by then, so a
+  changed title or an added or removed column showed a render late (and, with
+  nothing else re-rendering the grid, stayed stale). Blazor renders sibling
+  components in order, so `AfterColumns` always sees the current columns.
 - **JS interop boundary**: one small module, `wwwroot/colonnadeGrid.js`,
   handling exactly four things neither pure Blazor nor pure CSS can do: (1)
   low-latency pointer-drag tracking for column resize — including its live

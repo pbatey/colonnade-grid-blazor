@@ -10,9 +10,9 @@ public sealed class IssueRepository(NpgsqlDataSource dataSource)
 {
     private const int GroupKeyOrdinal = IssueQueryBuilder.SelectColumnCount;
 
-    public async Task<IssuePage> QueryAsync(DataRequest request, CancellationToken cancellationToken)
+    public async Task<IssuePage> QueryAsync(DataRequest request, DateTime now, CancellationToken cancellationToken)
     {
-        var query = IssueQueryBuilder.Build(request);
+        var query = IssueQueryBuilder.Build(request, now);
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -59,9 +59,9 @@ public sealed class IssueRepository(NpgsqlDataSource dataSource)
         return new IssuePage(items, totalCount, groups, stopwatch.Elapsed.TotalMilliseconds);
     }
 
-    public async Task<IssueGroupList> ListGroupsAsync(GroupListRequest request, CancellationToken cancellationToken)
+    public async Task<IssueGroupList> ListGroupsAsync(GroupListRequest request, DateTime now, CancellationToken cancellationToken)
     {
-        var (pageStatement, totalsStatement) = IssueQueryBuilder.BuildGroupList(request);
+        var (pageStatement, totalsStatement) = IssueQueryBuilder.BuildGroupList(request, now);
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -94,9 +94,9 @@ public sealed class IssueRepository(NpgsqlDataSource dataSource)
         return new IssueGroupList(groups, (int)totalGroupCount, (int)totalCount, stopwatch.Elapsed.TotalMilliseconds);
     }
 
-    public async Task<IssueGroupPages> GetGroupPagesAsync(GroupPagesRequest request, CancellationToken cancellationToken)
+    public async Task<IssueGroupPages> GetGroupPagesAsync(GroupPagesRequest request, DateTime now, CancellationToken cancellationToken)
     {
-        var (rowsStatement, countsStatement) = IssueQueryBuilder.BuildGroupPages(request);
+        var (rowsStatement, countsStatement) = IssueQueryBuilder.BuildGroupPages(request, now);
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -127,9 +127,9 @@ public sealed class IssueRepository(NpgsqlDataSource dataSource)
         return new IssueGroupPages(pages, stopwatch.Elapsed.TotalMilliseconds);
     }
 
-    public async Task<IssueColumnStats> GetColumnStatsAsync(ColumnStatsRequest request, CancellationToken cancellationToken)
+    public async Task<IssueColumnStats> GetColumnStatsAsync(ColumnStatsRequest request, DateTime now, CancellationToken cancellationToken)
     {
-        var (summaryStatement, valuesStatement) = IssueQueryBuilder.BuildColumnStats(request);
+        var (summaryStatement, valuesStatement) = IssueQueryBuilder.BuildColumnStats(request, now);
         var stopwatch = Stopwatch.StartNew();
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

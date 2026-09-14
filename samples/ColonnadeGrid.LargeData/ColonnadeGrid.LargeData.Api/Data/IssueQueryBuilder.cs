@@ -48,7 +48,9 @@ public static class IssueQueryBuilder
     /// <summary>The number of columns in <see cref="SelectColumns"/>, which is also the ordinal of a grouped page's group_key.</summary>
     public const int SelectColumnCount = 12;
 
-    public static IssueQuery Build(DataRequest request)
+    /// <param name="request">The grid's request.</param>
+    /// <param name="now">"Now" for relative date filters, as local time.</param>
+    public static IssueQuery Build(DataRequest request, DateTime now)
     {
         if (request.Skip < 0)
         {
@@ -59,7 +61,7 @@ public static class IssueQueryBuilder
         var groupColumn = request.GroupByPropertyName is { } groupBy ? IssueColumns.Resolve(groupBy) : null;
 
         var filterParameters = new List<SqlParameterSpec>();
-        var where = BuildWhere(request.Filters, filterParameters);
+        var where = BuildWhere(request.Filters, filterParameters, now);
 
         var count = new SqlStatement($"SELECT count(*) FROM issues{where}", filterParameters);
 
@@ -99,7 +101,7 @@ public static class IssueQueryBuilder
     /// "how many more groups are there". <c>Totals</c> returns the same two totals
     /// for a batch past the last group, which has no rows to carry them.
     /// </summary>
-    public static (SqlStatement Page, SqlStatement Totals) BuildGroupList(GroupListRequest request)
+    public static (SqlStatement Page, SqlStatement Totals) BuildGroupList(GroupListRequest request, DateTime now)
     {
         if (request.Skip < 0)
         {
@@ -109,7 +111,7 @@ public static class IssueQueryBuilder
         var groupColumn = IssueColumns.Resolve(request.GroupByPropertyName);
         var col = $"issues.{groupColumn.Sql}";
         var parameters = new List<SqlParameterSpec>();
-        var where = BuildWhere(request.Filters, parameters);
+        var where = BuildWhere(request.Filters, parameters, now);
 
         var totals = new SqlStatement(
             $"SELECT (SELECT count(*) FROM (SELECT 1 FROM issues{where} GROUP BY {col}) g), (SELECT count(*) FROM issues{where})",
@@ -134,7 +136,7 @@ public static class IssueQueryBuilder
     /// split back out in order. <c>Counts</c> returns (group_key, row_count) for
     /// each requested group that has rows.
     /// </summary>
-    public static (SqlStatement Rows, SqlStatement Counts) BuildGroupPages(GroupPagesRequest request)
+    public static (SqlStatement Rows, SqlStatement Counts) BuildGroupPages(GroupPagesRequest request, DateTime now)
     {
         if (request.Pages.Count is 0 or > MaxGroupPagesPerRequest)
         {
@@ -143,7 +145,7 @@ public static class IssueQueryBuilder
 
         var groupColumn = IssueColumns.Resolve(request.GroupByPropertyName);
         var parameters = new List<SqlParameterSpec>();
-        var where = BuildWhere(request.Filters, parameters);
+        var where = BuildWhere(request.Filters, parameters, now);
         var conditions = request.Pages.Select(page => BuildGroupCondition(groupColumn, page.GroupKey, parameters)).ToList();
 
         // One GROUP BY over the requested groups' rows. (A count(*) FILTER per
@@ -227,7 +229,7 @@ public static class IssueQueryBuilder
     /// non-empty values, in the column's sort order — the extra row shows the list
     /// was cut off.
     /// </summary>
-    public static (SqlStatement Summary, SqlStatement? Values) BuildColumnStats(ColumnStatsRequest request)
+    public static (SqlStatement Summary, SqlStatement? Values) BuildColumnStats(ColumnStatsRequest request, DateTime now)
     {
         var column = IssueColumns.Resolve(request.PropertyName);
         var col = $"issues.{column.Sql}";
@@ -235,7 +237,7 @@ public static class IssueQueryBuilder
 
         var parameters = new List<SqlParameterSpec>();
         var otherFilters = request.Filters.Where(f => f.PropertyName != request.PropertyName).ToList();
-        var where = BuildWhere(otherFilters, parameters);
+        var where = BuildWhere(otherFilters, parameters, now);
 
         // min()/max() run on the typed column, so enums sort in declaration order;
         // enums and text are then read back as text, everything else as its .NET type.
@@ -276,17 +278,17 @@ public static class IssueQueryBuilder
     private static string AndWhere(string where, string condition) =>
         where.Length == 0 ? $" WHERE {condition}" : $"{where} AND {condition}";
 
-    private static string BuildWhere(IReadOnlyList<FilterDescriptor> filters, List<SqlParameterSpec> parameters)
+    private static string BuildWhere(IReadOnlyList<FilterDescriptor> filters, List<SqlParameterSpec> parameters, DateTime now)
     {
         if (filters.Count == 0)
         {
             return "";
         }
 
-        return " WHERE " + string.Join(" AND ", filters.Select(f => BuildFilter(f, parameters)));
+        return " WHERE " + string.Join(" AND ", filters.Select(f => BuildFilter(f, parameters, now)));
     }
 
-    private static string BuildFilter(FilterDescriptor filter, List<SqlParameterSpec> parameters)
+    private static string BuildFilter(FilterDescriptor filter, List<SqlParameterSpec> parameters, DateTime now)
     {
         var column = IssueColumns.Resolve(filter.PropertyName);
         var col = column.Sql;
@@ -335,8 +337,8 @@ public static class IssueQueryBuilder
                     throw new InvalidQueryException($"'{filter.PropertyName}' isn't a date, so it can't be filtered by a relative period.");
                 }
 
-                // "Now" is the API's clock, taken per query, so a saved "last 30 days" stays relative.
-                var now = DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Unspecified);
+                // "now" is the browser's clock at request time (see Program.cs),
+                // as in the in-memory provider, so a saved "last 30 days" stays relative.
                 if (!RelativeDatePeriod.TryGetStart(filter.Value, now, out var start))
                 {
                     throw new InvalidQueryException($"'{filter.Value}' isn't a period like P30D.");

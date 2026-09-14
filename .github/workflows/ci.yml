@@ -1,0 +1,29 @@
+# Builds the whole solution (library, tests, and samples) and runs the tests
+# on every push and pull request, so a break is found before release time.
+
+name: CI
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # SDK version comes from global.json, as in the release workflow
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build colonnade-grid.slnx --configuration Release
+
+      - name: Test
+        run: dotnet test tests/ColonnadeGrid.Tests/ColonnadeGrid.Tests.csproj --configuration Release --no-build

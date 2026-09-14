@@ -1,0 +1,23 @@
+@using ColonnadeGrid
+@namespace ColonnadeGrid.Tests.TestSupport
+
+@*
+    A grid whose column markup the host changes between renders: a column
+    rendered only while ShowAssignee is set, and a title that can change.
+*@
+
+<ColonnadeGrid TItem="Issue" Items="Items">
+    <Columns>
+        <GridColumn Field="(Issue x) => x.Title" Title="@TitleText" />
+        @if (ShowAssignee)
+        {
+            <GridColumn Field="(Issue x) => x.Assignee" Title="Assignee" />
+        }
+    </Columns>
+</ColonnadeGrid>
+
+@code {
+    [Parameter] public IEnumerable<Issue>? Items { get; set; }
+    [Parameter] public string TitleText { get; set; } = "Title";
+    [Parameter] public bool ShowAssignee { get; set; }
+}

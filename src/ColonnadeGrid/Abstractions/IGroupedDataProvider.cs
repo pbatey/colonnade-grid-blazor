@@ -19,7 +19,8 @@ public interface IGroupedDataProvider<TItem> : IDataProvider<TItem>
 
     /// <summary>
     /// Returns the requested page of rows for each group in
-    /// <see cref="GroupPagesRequest.Pages"/>, in any order. The grid cancels
+    /// <see cref="GroupPagesRequest.Pages"/>, in any order. A call asks for at
+    /// most the grid's <c>MaxGroupPagesPerRequest</c> groups. The grid cancels
     /// <paramref name="cancellationToken"/> when the view changes underneath the request.
     /// </summary>
     Task<IReadOnlyList<GroupPage<TItem>>> GetGroupPagesAsync(GroupPagesRequest request, CancellationToken cancellationToken = default);
