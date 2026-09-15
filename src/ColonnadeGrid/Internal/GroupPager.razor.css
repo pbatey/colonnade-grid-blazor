@@ -22,6 +22,12 @@
     font-variant-numeric: tabular-nums;
 }
 
+.cg-group-pager-status {
+    padding: 0 6px;
+    color: var(--cg-text-color);
+    white-space: nowrap;
+}
+
 .cg-group-pager-button {
     display: inline-flex;
     align-items: center;

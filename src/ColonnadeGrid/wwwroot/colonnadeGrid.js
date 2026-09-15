@@ -144,23 +144,110 @@ function setRowTemplates(rows, value) {
 
 const FLOATING_PANEL_MARGIN = 8;
 
+// Custom properties the floating menus read for their chrome. They are defined
+// on .cg-root and normally inherit down; when a panel is portaled to <body>
+// (see positionFloatingPanel) that inheritance is lost, so their resolved
+// values are copied onto the panel. Keep in sync with .cg-root in
+// ColonnadeGrid.razor.css and the menus' .razor.css files.
+const CG_PORTAL_CUSTOM_PROPS = [
+    '--cg-popover-bg',
+    '--cg-popover-text-color',
+    '--cg-popover-muted-text-color',
+    '--cg-popover-hover-bg',
+    '--cg-popover-border-color',
+    '--cg-popover-line-height',
+    '--cg-font-family',
+    '--cg-font-size',
+    '--cg-radius'
+];
+
 export function positionFloatingPanel(panelEl) {
-    const anchor = panelEl.parentElement;
-    if (!anchor) {
-        return;
+    // The panel is rendered as a DOM descendant of its trigger's header cell,
+    // which sits inside host containers that may clip (overflow: hidden/auto) or
+    // establish a containing block for fixed descendants (a transform/filter/
+    // etc. on an ancestor). Neither position:absolute nor a coordinate-adjusted
+    // position:fixed can reliably escape *clipping* — an overflow ancestor clips
+    // a fixed child whenever that ancestor is also its containing block. The one
+    // approach immune to every host layout is to portal the panel to <body>, so
+    // it has no clipping or containing-block ancestor at all, then position it
+    // with viewport (fixed) coordinates measured from the trigger. The element
+    // stays a Blazor-owned node; restoreFloatingPanel puts it back before Blazor
+    // disposes it (see the components' DisposeAsync).
+    // Resolve the trigger. On the first call the panel is still a DOM descendant
+    // of its trigger's anchor span, so read it from there and remember it — after
+    // portaling to <body> the panel's parent/siblings no longer point at the
+    // button, and this function runs again whenever the menu changes size (e.g.
+    // switching to the taller "Filter by values…" view) to reposition it.
+    let trigger;
+    if (panelEl._cgPortal && panelEl._cgPortal.trigger && panelEl._cgPortal.trigger.isConnected) {
+        trigger = panelEl._cgPortal.trigger;
+    } else {
+        const anchor = panelEl.parentElement;
+        if (!anchor) {
+            return;
+        }
+        // The button is rendered immediately before the panel inside the anchor
+        // span; fall back to a class query, then to the span itself.
+        trigger = panelEl.previousElementSibling
+            || anchor.querySelector('.cg-column-menu-button, .cg-columns-button')
+            || anchor;
+    }
+    const anchorRect = trigger.getBoundingClientRect();
+
+    // Portal to <body> (once). Remember where it came from so it can be restored
+    // to exactly its original slot — Blazor removes it from that parent on close,
+    // and removing a node from a parent it no longer lives under throws.
+    if (!panelEl._cgPortal) {
+        // The panel's chrome (background, text/border colors, popover
+        // line-height) comes from --cg-popover-*/--cg-font-* custom properties
+        // defined on .cg-root and inherited down the tree. Once portaled to
+        // <body> that inheritance chain is severed, so copy the resolved values
+        // onto the panel itself first. Also lift it above page content: its
+        // scoped z-index only meant something inside .cg-root's stacking context.
+        const cs = getComputedStyle(panelEl);
+        for (const prop of CG_PORTAL_CUSTOM_PROPS) {
+            const value = cs.getPropertyValue(prop);
+            if (value) {
+                panelEl.style.setProperty(prop, value.trim());
+            }
+        }
+        panelEl.style.zIndex = '2147483000';
+
+        const placeholder = document.createComment('cg-floating-panel');
+        panelEl.before(placeholder);
+        panelEl._cgPortal = { placeholder, trigger };
+
+        // The click-away backdrop (.cg-dropdown-backdrop) closes the menu on an
+        // outside click. It lives inside .cg-root, whose `isolation: isolate`
+        // caps its stacking within the grid's own context — but the menu now
+        // sits on <body> above that context, so clicks outside the grid never
+        // reach the backdrop. Lift the same backdrop element onto <body> too,
+        // just below the menu, so it covers the whole viewport and catches every
+        // outside click. Its Blazor @onclick keeps working across the move.
+        const root = trigger.closest('.cg-root');
+        const backdrop = root && root.querySelector(':scope > .cg-dropdown-backdrop');
+        if (backdrop && !backdrop._cgPortal) {
+            const backdropPlaceholder = document.createComment('cg-dropdown-backdrop');
+            backdrop.before(backdropPlaceholder);
+            backdrop._cgPortal = { placeholder: backdropPlaceholder };
+            backdrop.style.zIndex = '2147482999';
+            document.body.appendChild(backdrop);
+        }
+        panelEl._cgPortal.backdrop = backdrop || null;
+
+        document.body.appendChild(panelEl);
     }
 
-    const anchorRect = anchor.getBoundingClientRect();
     const panelRect = panelEl.getBoundingClientRect();
 
-    // Default: right-aligned to the anchor, opening downward — the same as the
-    // CSS fallback (position:absolute; right:0; top:100%), so nothing jumps.
+    // Default: right-aligned to the trigger, opening downward — matches the CSS
+    // fallback (position:absolute; right:0; top:100%) so there is no visual jump.
     let left = anchorRect.right - panelRect.width;
     let top = anchorRect.bottom + 4;
 
     if (left < FLOATING_PANEL_MARGIN) {
         // Flip to left-aligned rather than clamping, which would slide the
-        // panel out from under its anchor.
+        // panel out from under its trigger.
         left = anchorRect.left;
     }
 
@@ -180,10 +267,43 @@ export function positionFloatingPanel(panelEl) {
         }
     }
 
+    // Now on <body>, so viewport (fixed) coordinates apply directly with no
+    // clipping or containing-block ancestor to fight.
     panelEl.style.position = 'fixed';
     panelEl.style.left = `${left}px`;
     panelEl.style.top = `${top}px`;
     panelEl.style.right = 'auto';
+}
+
+// Moves a portaled panel back to its original DOM slot so Blazor can remove it
+// cleanly on close. Safe to call if the panel was never portaled (no-op).
+export function restoreFloatingPanel(panelEl) {
+    const portal = panelEl && panelEl._cgPortal;
+    if (!portal) {
+        return;
+    }
+
+    // Restore the lifted backdrop first (see positionFloatingPanel). Both menus
+    // share one backdrop, so guard against a double-restore via its own _cgPortal.
+    const backdrop = portal.backdrop;
+    if (backdrop && backdrop._cgPortal) {
+        const bp = backdrop._cgPortal.placeholder;
+        if (bp && bp.parentNode) {
+            bp.replaceWith(backdrop);
+        } else if (backdrop.parentNode === document.body) {
+            document.body.removeChild(backdrop);
+        }
+        backdrop.style.zIndex = '';
+        delete backdrop._cgPortal;
+    }
+
+    const { placeholder } = portal;
+    if (placeholder && placeholder.parentNode) {
+        placeholder.replaceWith(panelEl);
+    } else if (panelEl.parentNode === document.body) {
+        document.body.removeChild(panelEl);
+    }
+    delete panelEl._cgPortal;
 }
 
 export function syncIndeterminate(container) {

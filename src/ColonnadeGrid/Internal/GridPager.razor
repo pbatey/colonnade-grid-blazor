@@ -21,43 +21,35 @@
         </label>
     }
     <div class="cg-pager-pages">
+        <button type="button" class="cg-pager-button cg-pager-first"
+                disabled="@(PageIndex <= 0)"
+                aria-label="First page"
+                @onclick="() => OnPageRequested.InvokeAsync(0)">
+            <DoubleChevron Direction="DoubleChevron.ChevronDirection.Left" Color="currentColor" />
+        </button>
         <button type="button" class="cg-pager-button cg-pager-previous"
                 disabled="@(PageIndex <= 0)"
                 aria-label="Previous page"
                 @onclick="() => OnPageRequested.InvokeAsync(PageIndex - 1)">
             <ChevronLeft16 Color="currentColor" />
-            <span>Previous</span>
         </button>
-        @foreach (var item in GetPageItems(PageIndex, PageCount))
-        {
-            @if (item is { } page)
-            {
-                var isCurrent = page == PageIndex;
-                <button type="button" class="cg-pager-button cg-pager-page @(isCurrent ? "cg-pager-page-current" : "")"
-                        aria-current="@(isCurrent ? "page" : null)"
-                        aria-label="Page @(page + 1)"
-                        @onclick="() => OnPageRequested.InvokeAsync(page)">
-                    @((page + 1).ToString("N0"))
-                </button>
-            }
-            else
-            {
-                <span class="cg-pager-gap" aria-hidden="true">…</span>
-            }
-        }
+        <span class="cg-pager-status" aria-live="polite">Page @((PageIndex + 1).ToString("N0")) of @(PageCount.ToString("N0"))</span>
         <button type="button" class="cg-pager-button cg-pager-next"
                 disabled="@(PageIndex >= PageCount - 1)"
                 aria-label="Next page"
                 @onclick="() => OnPageRequested.InvokeAsync(PageIndex + 1)">
-            <span>Next</span>
             <ChevronRight16 Color="currentColor" />
+        </button>
+        <button type="button" class="cg-pager-button cg-pager-last"
+                disabled="@(PageIndex >= PageCount - 1)"
+                aria-label="Last page"
+                @onclick="() => OnPageRequested.InvokeAsync(PageCount - 1)">
+            <DoubleChevron Direction="DoubleChevron.ChevronDirection.Right" Color="currentColor" />
         </button>
     </div>
 </nav>
 
 @code {
-    /// <summary>At most this many page buttons and gaps are shown, so the pager keeps a steady width while paging.</summary>
-    private const int MaxPageItems = 7;
 
     [Parameter]
     public int PageIndex { get; set; }
@@ -101,29 +93,4 @@
     private Task OnPageSizeSelected(ChangeEventArgs e) =>
         int.TryParse(e.Value?.ToString(), out var size) ? OnPageSizeRequested.InvokeAsync(size) : Task.CompletedTask;
 
-    /// <summary>
-    /// The page buttons to show, as zero-based page indexes, with <c>null</c>
-    /// marking a gap ("…"). Always includes the first page, the last page, and
-    /// the current page with its neighbors; each gap hides at least two pages.
-    /// </summary>
-    internal static IReadOnlyList<int?> GetPageItems(int pageIndex, int pageCount)
-    {
-        if (pageCount <= MaxPageItems)
-        {
-            return Enumerable.Range(0, pageCount).Select(i => (int?)i).ToList();
-        }
-
-        var last = pageCount - 1;
-        if (pageIndex <= 3)
-        {
-            return [0, 1, 2, 3, 4, null, last];
-        }
-
-        if (pageIndex >= last - 3)
-        {
-            return [0, null, last - 4, last - 3, last - 2, last - 1, last];
-        }
-
-        return [0, null, pageIndex - 1, pageIndex, pageIndex + 1, null, last];
-    }
 }

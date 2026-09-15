@@ -16,6 +16,11 @@
     /* Opaque, like the sticky header, so rows don't show through while scrolling. */
     background: var(--cg-canvas-bg);
     color: var(--cg-muted-text-color);
+    /* 12px (not the table body's 14px --cg-font-size) to match the more compact
+       group pager (.cg-group-pager). Cascades to the range text, the "Rows per
+       page" label/select, and the "Page X of Y" status; the buttons and select
+       use font:inherit, so they follow too. */
+    font-size: 12px;
 }
 
 .cg-pager-range {
@@ -45,26 +50,25 @@
 }
 
 .cg-pager-button {
+    /* Matches the group pager's compact, borderless icon buttons
+       (.cg-group-pager-button) so the two pagers look consistent. */
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    min-width: 32px;
-    height: 32px;
-    padding: 0 8px;
-    border: 1px solid transparent;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
     border-radius: var(--cg-radius);
     background: transparent;
     color: var(--cg-text-color);
     font: inherit;
-    font-variant-numeric: tabular-nums;
     cursor: pointer;
 }
 
 .cg-pager-button:hover:not(:disabled),
 .cg-pager-button:focus-visible {
     background: var(--cg-row-hover-bg);
-    border-color: var(--cg-border-color);
 }
 
 .cg-pager-button:disabled {
@@ -73,14 +77,9 @@
     cursor: default;
 }
 
-.cg-pager-button.cg-pager-page-current,
-.cg-pager-button.cg-pager-page-current:hover {
-    background: var(--cg-accent-color);
-    border-color: var(--cg-accent-color);
-    color: #fff;
-}
-
-.cg-pager-gap {
-    min-width: 24px;
-    text-align: center;
+.cg-pager-status {
+    padding: 0 8px;
+    color: var(--cg-text-color);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
