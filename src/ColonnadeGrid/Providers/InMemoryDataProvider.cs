@@ -50,7 +50,7 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
     /// <inheritdoc />
     public Task<DataResponse<TItem>> GetDataAsync(DataRequest request, CancellationToken cancellationToken = default)
     {
-        var sorted = FilterAndSort(request.Filters, request.Sort);
+        var sorted = FilterAndSort(request.Filters, request.Sorts);
         var totalCount = sorted.Count;
 
         if (request.GroupByPropertyName is { } groupProperty)
@@ -77,7 +77,7 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
     /// <inheritdoc />
     public Task<GroupListResponse> GetGroupsAsync(GroupListRequest request, CancellationToken cancellationToken = default)
     {
-        var sorted = FilterAndSort(request.Filters, request.Sort);
+        var sorted = FilterAndSort(request.Filters, request.Sorts);
         var groups = GroupByKey(sorted, request.GroupByPropertyName);
 
         var page = groups
@@ -92,7 +92,7 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
     /// <inheritdoc />
     public Task<IReadOnlyList<GroupPage<TItem>>> GetGroupPagesAsync(GroupPagesRequest request, CancellationToken cancellationToken = default)
     {
-        var sorted = FilterAndSort(request.Filters, request.Sort);
+        var sorted = FilterAndSort(request.Filters, request.Sorts);
         var groups = GroupByKey(sorted, request.GroupByPropertyName).ToDictionary(g => g.Key, g => g.Items);
 
         IReadOnlyList<GroupPage<TItem>> pages = request.Pages
@@ -112,7 +112,7 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
     {
         var otherFilters = request.Filters.Where(f => f.PropertyName != request.PropertyName).ToList();
         var accessor = GetAccessor(request.PropertyName);
-        var values = FilterAndSort(otherFilters, sort: null).Select(accessor).ToList();
+        var values = FilterAndSort(otherFilters, sorts: []).Select(accessor).ToList();
         var nonEmpty = values.Where(value => !IsEmptyValue(value)).ToList();
         var comparer = Comparer<object?>.Create(CompareValues);
 
@@ -141,7 +141,7 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
             HasMoreValues: hasMoreValues));
     }
 
-    private List<TItem> FilterAndSort(IReadOnlyList<FilterDescriptor> filters, SortDescriptor? sort)
+    private List<TItem> FilterAndSort(IReadOnlyList<FilterDescriptor> filters, IReadOnlyList<SortDescriptor> sorts)
     {
         // One "now" per query, so every row is compared against the same instant.
         var now = _timeProvider.GetLocalNow();
@@ -152,18 +152,35 @@ public sealed class InMemoryDataProvider<TItem> : IGroupedDataProvider<TItem>, I
             filtered = filtered.Where(item => MatchesFilter(accessor(item), filter, now));
         }
 
-        return sort is { Direction: not SortDirection.None } activeSort
-            ? ApplySort(filtered, activeSort).ToList()
-            : filtered.ToList();
+        var activeSorts = sorts.Where(s => s.Direction != SortDirection.None).ToList();
+        return activeSorts.Count == 0
+            ? filtered.ToList()
+            : ApplySort(filtered, activeSorts).ToList();
     }
 
-    private static IEnumerable<TItem> ApplySort(IEnumerable<TItem> items, SortDescriptor sort)
+    private static IEnumerable<TItem> ApplySort(IEnumerable<TItem> items, IReadOnlyList<SortDescriptor> sorts)
     {
-        var accessor = GetAccessor(sort.PropertyName);
         var comparer = Comparer<object?>.Create(CompareValues);
-        return sort.Direction == SortDirection.Ascending
-            ? items.OrderBy(accessor, comparer)
-            : items.OrderByDescending(accessor, comparer);
+
+        // First key with OrderBy/OrderByDescending; any further keys as
+        // ThenBy/ThenByDescending, so each successive key breaks ties within
+        // the previous one.
+        var primary = sorts[0];
+        var primaryAccessor = GetAccessor(primary.PropertyName);
+        var ordered = primary.Direction == SortDirection.Ascending
+            ? items.OrderBy(primaryAccessor, comparer)
+            : items.OrderByDescending(primaryAccessor, comparer);
+
+        for (var i = 1; i < sorts.Count; i++)
+        {
+            var sort = sorts[i];
+            var accessor = GetAccessor(sort.PropertyName);
+            ordered = sort.Direction == SortDirection.Ascending
+                ? ordered.ThenBy(accessor, comparer)
+                : ordered.ThenByDescending(accessor, comparer);
+        }
+
+        return ordered;
     }
 
     /// <summary>

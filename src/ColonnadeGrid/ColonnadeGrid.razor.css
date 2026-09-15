@@ -145,6 +145,24 @@
     background: var(--cg-border-color);
 }
 
+/*
+  The small "1"/"2" order badge next to a column's sort arrow, shown only
+  while two columns are sorted (see GetSortOrder): it tells the user which
+  column sorts first and which breaks ties. Rendered inside the sort-
+  indicator button, just after the arrow, so it inherits the button's
+  hover/focus color transitions.
+*/
+.cg-sort-indicator {
+    gap: 1px;
+}
+
+.cg-sort-order {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
 .cg-grid {
     /*
       No outer border/radius and no overflow-x:auto here — both are a

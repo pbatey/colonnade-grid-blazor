@@ -634,6 +634,44 @@ public class ColonnadeGridTests : BunitContext
         Assert.Equal("Status", provider.Requests[^1].GroupByPropertyName);
     }
 
+    [Fact]
+    public void SortingSecondColumn_SendsBothSortKeys_AndShowsOrderBadges()
+    {
+        var provider = new RecordingDataProvider<Issue>(SampleIssues.Create());
+        var cut = Render<IssueGridHost>(p => p
+            .Add(x => x.DataProvider, (IDataProvider<Issue>)provider)
+            .Add(x => x.RowKey, (Func<Issue, string>)(i => i.Title)));
+
+        cut.WaitForState(() => provider.Requests.Count >= 1);
+
+        OpenColumnMenu(cut, "Priority");
+        ClickColumnMenuItem(cut, "Sort ascending");
+        cut.WaitForState(() => provider.Requests.Count >= 2);
+
+        // Only one column sorted: no order badge yet.
+        Assert.Empty(cut.FindAll(".cg-sort-order"));
+
+        OpenColumnMenu(cut, "Title");
+        ClickColumnMenuItem(cut, "Sort descending");
+        cut.WaitForState(() => provider.Requests.Count >= 3);
+
+        // Both keys reach the provider, in priority order.
+        Assert.Equal(
+            new[]
+            {
+                new SortDescriptor("Priority", SortDirection.Ascending),
+                new SortDescriptor("Title", SortDirection.Descending)
+            },
+            provider.Requests[^1].Sorts);
+
+        // Two columns sorted: each shows its 1-based priority badge (Priority is
+        // primary = 1, Title is secondary = 2), regardless of column order.
+        var priorityBadge = cut.Find("[data-column-id='Priority'] .cg-sort-order").TextContent.Trim();
+        var titleBadge = cut.Find("[data-column-id='Title'] .cg-sort-order").TextContent.Trim();
+        Assert.Equal("1", priorityBadge);
+        Assert.Equal("2", titleBadge);
+    }
+
     // R5 — graceful degradation. In this test host JS interop is Loose (see the
     // constructor), so positionFloatingPanel never runs and the panel keeps its
     // pre-JS state: the CSS-fallback markup from ColumnMenu.razor.css

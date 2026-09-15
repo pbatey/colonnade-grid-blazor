@@ -17,7 +17,11 @@ namespace ColonnadeGrid.Models;
 /// carrying its size across all pages.
 /// </para>
 /// </param>
-/// <param name="Sort">The single active sort, or <c>null</c> for unsorted. Multi-column sort is not supported in v1.</param>
+/// <param name="Sort">
+/// The primary sort, or <c>null</c> for unsorted. Providers that only handle
+/// single-column sort can read just this; those supporting two-column sort
+/// should read <see cref="Sorts"/> for the full ordered list.
+/// </param>
 /// <param name="Filters">The active column filters, combined with AND semantics.</param>
 /// <param name="GroupByPropertyName">
 /// The property to group by, or <c>null</c> for no grouping. Only a single
@@ -30,6 +34,14 @@ public sealed record DataRequest(
     IReadOnlyList<FilterDescriptor> Filters,
     string? GroupByPropertyName)
 {
+    /// <summary>
+    /// The active sort keys, in priority order (primary first, secondary
+    /// breaks ties). Defaults to just <see cref="Sort"/> (or empty when it's
+    /// <c>null</c>), so constructing a request positionally still carries the
+    /// primary sort; the grid sets this explicitly for two-column sort.
+    /// </summary>
+    public IReadOnlyList<SortDescriptor> Sorts { get; init; } = Sort is null ? [] : [Sort];
+
     /// <summary>A request for the first page of unsorted, unfiltered, ungrouped data.</summary>
     public static DataRequest Default { get; } = new(0, int.MaxValue, null, [], null);
 }

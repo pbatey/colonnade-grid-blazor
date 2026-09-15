@@ -168,7 +168,7 @@ public partial class ColonnadeGrid<TItem>
         try
         {
             response = await provider.GetGroupsAsync(
-                new GroupListRequest(state.Sort, state.Filters, state.GroupByPropertyName!, 0, GroupsPerLoad),
+                new GroupListRequest(state.Sort, state.Filters, state.GroupByPropertyName!, 0, GroupsPerLoad) { Sorts = state.Sorts },
                 cts.Token);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -289,7 +289,8 @@ public partial class ColonnadeGrid<TItem>
             slots.Select(slot => new GroupPageRequest(
                 slot.Summary.Key,
                 (int)Math.Min((long)slot.PageIndex * GroupPageSize, int.MaxValue),
-                GroupPageSize)).ToList());
+                GroupPageSize)).ToList())
+        { Sorts = state.Sorts };
 
         IReadOnlyList<GroupPage<TItem>> pages;
         try
@@ -399,7 +400,7 @@ public partial class ColonnadeGrid<TItem>
         try
         {
             response = await provider.GetGroupsAsync(
-                new GroupListRequest(state.Sort, state.Filters, state.GroupByPropertyName!, _groupSlots.Count, GroupsPerLoad),
+                new GroupListRequest(state.Sort, state.Filters, state.GroupByPropertyName!, _groupSlots.Count, GroupsPerLoad) { Sorts = state.Sorts },
                 cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

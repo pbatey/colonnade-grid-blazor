@@ -477,8 +477,8 @@ public partial class ColonnadeGrid<TItem>
 
         var request = EnablePaging
             ? new DataRequest((int)Math.Min((long)_pageIndex * _pageSize, int.MaxValue), _pageSize,
-                _state.Sort, _state.Filters, _state.GroupByPropertyName)
-            : new DataRequest(0, int.MaxValue, _state.Sort, _state.Filters, _state.GroupByPropertyName);
+                _state.Sort, _state.Filters, _state.GroupByPropertyName) { Sorts = _state.Sorts }
+            : new DataRequest(0, int.MaxValue, _state.Sort, _state.Filters, _state.GroupByPropertyName) { Sorts = _state.Sorts };
 
         DataResponse<TItem> response;
         try
@@ -708,30 +708,43 @@ public partial class ColonnadeGrid<TItem>
         return SetSelectedKeysAsync(updated);
     }
 
-    private string GetAriaSort(GridColumnBase<TItem> column)
-    {
-        if (_state?.Sort?.PropertyName != column.PropertyName)
-        {
-            return "none";
-        }
-
-        return _state.Sort.Direction switch
+    private string GetAriaSort(GridColumnBase<TItem> column) =>
+        GetActiveSortDirection(column) switch
         {
             SortDirection.Ascending => "ascending",
             SortDirection.Descending => "descending",
             _ => "none"
         };
-    }
 
-    /// <summary>This column's current sort direction, or <c>null</c> if it isn't the active sort column.</summary>
-    private SortDirection? GetActiveSortDirection(GridColumnBase<TItem> column)
+    /// <summary>This column's sort key among the active sorts, or <c>null</c> if it isn't a sort column.</summary>
+    private SortDescriptor? GetSortDescriptor(GridColumnBase<TItem> column) =>
+        _state?.Sorts.FirstOrDefault(s => s.PropertyName == column.PropertyName);
+
+    /// <summary>This column's current sort direction, or <c>null</c> if it isn't an active sort column.</summary>
+    private SortDirection? GetActiveSortDirection(GridColumnBase<TItem> column) =>
+        GetSortDescriptor(column) is { Direction: not SortDirection.None } sort ? sort.Direction : null;
+
+    /// <summary>
+    /// This column's 1-based position among the active sort keys, shown as a
+    /// badge next to its sort arrow — but only while two columns are sorted,
+    /// since a single sort needs no ordering hint. <c>null</c> otherwise.
+    /// </summary>
+    private int? GetSortOrder(GridColumnBase<TItem> column)
     {
-        if (_state?.Sort?.PropertyName != column.PropertyName)
+        if (_state is null || _state.Sorts.Count < 2)
         {
             return null;
         }
 
-        return _state.Sort.Direction == SortDirection.None ? null : _state.Sort.Direction;
+        for (var i = 0; i < _state.Sorts.Count; i++)
+        {
+            if (_state.Sorts[i].PropertyName == column.PropertyName)
+            {
+                return i + 1;
+            }
+        }
+
+        return null;
     }
 
     private void ToggleColumnMenu(string columnId)
@@ -795,17 +808,22 @@ public partial class ColonnadeGrid<TItem>
         }
     }
 
-    /// <summary>Flips the given (already-active) sort column between Ascending and Descending — a quick alternative to the "..." menu's Sort ascending/descending items.</summary>
+    /// <summary>Flips the given (already-active) sort column between Ascending and Descending, keeping its position among the sort keys — a quick alternative to the "..." menu's Sort ascending/descending items.</summary>
     private Task ToggleSortDirectionAsync(GridColumnBase<TItem> column)
     {
         var next = GetActiveSortDirection(column) == SortDirection.Ascending
             ? SortDirection.Descending
             : SortDirection.Ascending;
-        return SetStateAsync(_state!.SetSort(new SortDescriptor(column.PropertyName, next)), reload: true);
+        return SetStateAsync(_state!.AddSort(new SortDescriptor(column.PropertyName, next)), reload: true);
     }
 
-    private Task OnSortChangedAsync(SortDescriptor? sort) =>
-        SetStateAsync(_state!.SetSort(sort), reload: true);
+    /// <summary>Adds or updates a sort key from the column menu — a new column becomes the secondary sort (or primary when nothing is sorted); an existing one keeps its position. See <see cref="GridState.AddSort"/>.</summary>
+    private Task OnSortAddedAsync(SortDescriptor sort) =>
+        SetStateAsync(_state!.AddSort(sort), reload: true);
+
+    /// <summary>Removes the given column's sort key, promoting any key behind it (so clearing the primary sort makes the secondary the new primary). See <see cref="GridState.RemoveSort"/>.</summary>
+    private Task OnSortRemovedAsync(string propertyName) =>
+        SetStateAsync(_state!.RemoveSort(propertyName), reload: true);
 
     private Task OnFilterAppliedAsync(FilterDescriptor filter) =>
         SetStateAsync(_state!.SetFilter(filter), reload: true);

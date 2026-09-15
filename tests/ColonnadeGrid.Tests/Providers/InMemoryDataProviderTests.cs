@@ -33,6 +33,9 @@ public class InMemoryDataProviderTests
         string? groupBy = null) =>
         new(skip, take, sort, filters ?? [], groupBy);
 
+    private static DataRequest Request(IReadOnlyList<SortDescriptor> sorts) =>
+        new(0, int.MaxValue, sorts.Count > 0 ? sorts[0] : null, [], null) { Sorts = sorts };
+
     // ----- sorting -----
 
     [Fact]
@@ -66,6 +69,42 @@ public class InMemoryDataProviderTests
             Request(sort: new SortDescriptor(nameof(Issue.Priority), SortDirection.None)));
 
         Assert.Equal(SampleIssues.Select(i => i.Title), response.Items.Select(i => i.Title));
+    }
+
+    [Fact]
+    public async Task Sort_TwoColumns_BreaksTiesWithSecondaryKey()
+    {
+        var provider = CreateProvider();
+
+        // Primary Priority ascending, secondary Title ascending: rows with the
+        // same priority fall into alphabetical title order.
+        var response = await provider.GetDataAsync(Request(
+        [
+            new SortDescriptor(nameof(Issue.Priority), SortDirection.Ascending),
+            new SortDescriptor(nameof(Issue.Title), SortDirection.Ascending)
+        ]));
+
+        Assert.Equal(
+            ["Fix login bug", "Refactor auth", "Upgrade deps", "Write docs", "Add dark mode"],
+            response.Items.Select(i => i.Title));
+    }
+
+    [Fact]
+    public async Task Sort_TwoColumns_HonorsSecondaryDirectionIndependently()
+    {
+        var provider = CreateProvider();
+
+        // Primary Priority ascending, secondary Title descending: within each
+        // priority, titles run Z -> A.
+        var response = await provider.GetDataAsync(Request(
+        [
+            new SortDescriptor(nameof(Issue.Priority), SortDirection.Ascending),
+            new SortDescriptor(nameof(Issue.Title), SortDirection.Descending)
+        ]));
+
+        Assert.Equal(
+            ["Refactor auth", "Fix login bug", "Write docs", "Upgrade deps", "Add dark mode"],
+            response.Items.Select(i => i.Title));
     }
 
     [Fact]

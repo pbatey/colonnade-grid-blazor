@@ -1,9 +1,9 @@
 namespace ColonnadeGrid.Models;
 
 /// <summary>
-/// Describes how the table is currently sorted: a single column identified by
-/// its property name, and the direction to sort it in. ColonnadeGrid supports
-/// single-column sort in v1.
+/// Describes one sort key: a single column identified by its property name,
+/// and the direction to sort it in. A table can sort by up to two columns at
+/// once (see <see cref="GridState.Sorts"/>); each key is one of these.
 /// </summary>
 /// <param name="PropertyName">
 /// The <c>.NET</c> property name (not a display title) of the column being

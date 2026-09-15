@@ -72,7 +72,7 @@ public static class IssueQueryBuilder
         }
 
         pageSql.Append(" FROM issues").Append(where)
-            .Append(" ORDER BY ").Append(BuildOrderTerms(request.Sort, groupColumn))
+            .Append(" ORDER BY ").Append(BuildOrderTerms(request.Sorts, groupColumn))
             .Append(" LIMIT @take OFFSET @skip");
 
         var pageParameters = new List<SqlParameterSpec>(filterParameters)
@@ -122,7 +122,7 @@ public static class IssueQueryBuilder
         var skip = AddParameter(pageParameters, request.Skip, NpgsqlDbType.Integer);
         var page = new SqlStatement(
             $"SELECT {col}::text, count(*), count(*) OVER (), (sum(count(*)) OVER ())::bigint FROM issues{where} " +
-            $"GROUP BY {col} ORDER BY {OrderTerm(groupColumn, GroupDirection(request.Sort, groupColumn))} " +
+            $"GROUP BY {col} ORDER BY {OrderTerm(groupColumn, GroupDirection(request.Sorts, groupColumn))} " +
             $"LIMIT {take} OFFSET {skip}",
             pageParameters);
 
@@ -156,7 +156,7 @@ public static class IssueQueryBuilder
             parameters);
 
         var rowParameters = new List<SqlParameterSpec>(parameters);
-        var orderTerms = BuildOrderTerms(request.Sort, groupColumn: null);
+        var orderTerms = BuildOrderTerms(request.Sorts, groupColumn: null);
         var branches = new List<string>();
         for (var i = 0; i < request.Pages.Count; i++)
         {
@@ -270,9 +270,10 @@ public static class IssueQueryBuilder
         TryBuildTypedValue(column, value, parameters)
         ?? throw new InvalidQueryException($"'{value}' isn't a valid value for '{filter.PropertyName}'.");
 
-    private static SortDirection GroupDirection(SortDescriptor? sort, IssueColumn groupColumn) =>
-        sort is { Direction: not SortDirection.None } && IssueColumns.Resolve(sort.PropertyName) == groupColumn
-            ? sort.Direction
+    private static SortDirection GroupDirection(IReadOnlyList<SortDescriptor> sorts, IssueColumn groupColumn) =>
+        sorts.FirstOrDefault(s =>
+            s.Direction != SortDirection.None && IssueColumns.Resolve(s.PropertyName) == groupColumn) is { } onGroup
+            ? onGroup.Direction
             : SortDirection.Ascending;
 
     private static string AndWhere(string where, string condition) =>
@@ -422,26 +423,38 @@ public static class IssueQueryBuilder
         }
     }
 
-    private static string BuildOrderTerms(SortDescriptor? sort, IssueColumn? groupColumn)
+    private static string BuildOrderTerms(IReadOnlyList<SortDescriptor> sorts, IssueColumn? groupColumn)
     {
-        var sortColumn = sort is { Direction: not SortDirection.None } ? IssueColumns.Resolve(sort.PropertyName) : null;
+        // Resolve the active sort keys (in priority order) to columns, dropping
+        // any that are "None". Two-column sort produces two terms here.
+        var sortColumns = sorts
+            .Where(s => s.Direction != SortDirection.None)
+            .Select(s => (Column: IssueColumns.Resolve(s.PropertyName), s.Direction))
+            .ToList();
+
         var terms = new List<string>();
 
         if (groupColumn is not null)
         {
             // Sorting by the grouped column orders the groups themselves.
-            var groupDirection = sortColumn == groupColumn ? sort!.Direction : SortDirection.Ascending;
+            var onGroup = sortColumns.FirstOrDefault(s => s.Column == groupColumn);
+            var groupDirection = onGroup.Column is null ? SortDirection.Ascending : onGroup.Direction;
             terms.Add(OrderTerm(groupColumn, groupDirection));
         }
 
-        if (sortColumn is not null && sortColumn != groupColumn)
+        // Each remaining sort key, in priority order, as its own ORDER BY term;
+        // the group column (if it's also a sort key) is already covered above.
+        foreach (var (column, direction) in sortColumns)
         {
-            terms.Add(OrderTerm(sortColumn, sort!.Direction));
+            if (column != groupColumn)
+            {
+                terms.Add(OrderTerm(column, direction));
+            }
         }
 
         // A unique tiebreaker keeps OFFSET paging stable: without it, rows
         // with equal sort keys can move between pages from one query to the next.
-        if (sortColumn != IssueColumns.Id)
+        if (sortColumns.All(s => s.Column != IssueColumns.Id))
         {
             terms.Add("issues.id ASC");
         }

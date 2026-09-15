@@ -189,8 +189,13 @@
     [Parameter]
     public bool OpenToFilterView { get; set; }
 
+    /// <summary>Raised to add or update this column as a sort key (a new column becomes the secondary sort; an existing one changes direction in place).</summary>
     [Parameter]
-    public EventCallback<SortDescriptor?> OnSortChanged { get; set; }
+    public EventCallback<SortDescriptor> OnSortAdded { get; set; }
+
+    /// <summary>Raised to remove this column from the sort (promoting any key behind it).</summary>
+    [Parameter]
+    public EventCallback OnSortRemoved { get; set; }
 
     [Parameter]
     public EventCallback<FilterDescriptor> OnFilterApplied { get; set; }
@@ -284,7 +289,7 @@
     }
 
     private SortDirection? ActiveSortDirection =>
-        State.Sort?.PropertyName == Column.PropertyName ? State.Sort.Direction : null;
+        State.Sorts.FirstOrDefault(s => s.PropertyName == Column.PropertyName)?.Direction;
 
     private bool IsActiveGroup => State.GroupByPropertyName == Column.PropertyName;
 
@@ -342,13 +347,13 @@
 
     private async Task SetSortAsync(SortDirection direction)
     {
-        await OnSortChanged.InvokeAsync(new SortDescriptor(Column.PropertyName, direction));
+        await OnSortAdded.InvokeAsync(new SortDescriptor(Column.PropertyName, direction));
         await OnClose.InvokeAsync();
     }
 
     private async Task ClearSortAsync()
     {
-        await OnSortChanged.InvokeAsync(null);
+        await OnSortRemoved.InvokeAsync();
         await OnClose.InvokeAsync();
     }
 
