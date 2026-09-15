@@ -5,9 +5,10 @@ namespace ColonnadeGrid.Models;
 /// groups and their row counts, in display order.
 /// </summary>
 /// <param name="Sort">
-/// The active sort. When it's on the grouped property, it sets the order of
+/// The primary sort. When it's on the grouped property, it sets the order of
 /// the groups themselves; otherwise group order is the provider's choice, but
-/// must be stable across calls.
+/// must be stable across calls. Providers supporting two-column sort should
+/// read <see cref="Sorts"/> for the full ordered list.
 /// </param>
 /// <param name="Filters">The active column filters, combined with AND semantics.</param>
 /// <param name="GroupByPropertyName">The property to group by.</param>
@@ -18,4 +19,8 @@ public sealed record GroupListRequest(
     IReadOnlyList<FilterDescriptor> Filters,
     string GroupByPropertyName,
     int Skip,
-    int Take);
+    int Take)
+{
+    /// <summary>The active sort keys in priority order; defaults to just <see cref="Sort"/> (empty when <c>null</c>).</summary>
+    public IReadOnlyList<SortDescriptor> Sorts { get; init; } = Sort is null ? [] : [Sort];
+}

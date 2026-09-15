@@ -29,14 +29,30 @@ public sealed record GridState
     /// <summary>The default maximum column width (pixels) used by <see cref="SetColumnWidth"/> when not overridden.</summary>
     public const double DefaultMaxColumnWidth = 2000;
 
+    /// <summary>The maximum number of columns the table can sort by at once.</summary>
+    public const int MaxSortColumns = 2;
+
     /// <summary>
     /// The table's columns, in display order. A column's position in this
     /// list <em>is</em> its display order — there is no separate index field.
     /// </summary>
     public required IReadOnlyList<ColumnState> Columns { get; init; }
 
-    /// <summary>The single active sort, or <c>null</c> for unsorted.</summary>
-    public SortDescriptor? Sort { get; init; }
+    /// <summary>
+    /// The active sort keys, in priority order: the first is the primary sort,
+    /// the second (if any) breaks ties within it. Empty when unsorted. A table
+    /// sorts by at most <see cref="MaxSortColumns"/> columns, so this holds 0, 1,
+    /// or 2 entries.
+    /// </summary>
+    public IReadOnlyList<SortDescriptor> Sorts { get; init; } = [];
+
+    /// <summary>
+    /// The primary sort key, or <c>null</c> for unsorted — the first of
+    /// <see cref="Sorts"/>. Kept for callers (and data providers) that only
+    /// handle single-column sort; those see just the primary key and silently
+    /// ignore any secondary one.
+    /// </summary>
+    public SortDescriptor? Sort => Sorts.Count > 0 ? Sorts[0] : null;
 
     /// <summary>The active column filters.</summary>
     public IReadOnlyList<FilterDescriptor> Filters { get; init; } = [];
@@ -81,7 +97,7 @@ public sealed record GridState
 
     /// <summary>Whether <paramref name="other"/> asks the data source for the same rows: the same sort, filters, and group-by column.</summary>
     internal bool HasSameQueryAs(GridState other) =>
-        Sort == other.Sort
+        Sorts.SequenceEqual(other.Sorts)
         && GroupByPropertyName == other.GroupByPropertyName
         && Filters.Count == other.Filters.Count
         && Filters.Zip(other.Filters).All(pair => FiltersEqual(pair.First, pair.Second));
@@ -184,31 +200,114 @@ public sealed record GridState
     }
 
     /// <summary>
-    /// Applies a header click for the given property: cycles that column's
-    /// sort direction None → Ascending → Descending → None. Clicking a
-    /// different column than the currently-sorted one always starts at
-    /// Ascending.
+    /// Applies a header click for the given property.
+    /// <para>
+    /// If the column is already a sort key, cycles its direction in place —
+    /// Ascending → Descending → off — keeping its position among the other
+    /// sort keys. Turning it off removes it and promotes any key behind it
+    /// (so clearing the primary sort makes the secondary the new primary).
+    /// </para>
+    /// <para>
+    /// If it isn't a sort key yet, it's added as the newest key: it becomes
+    /// the secondary sort when there's already a primary (replacing an
+    /// existing secondary, since a table sorts by at most
+    /// <see cref="MaxSortColumns"/> columns), or the primary when there was no
+    /// sort at all. New keys always start Ascending.
+    /// </para>
     /// </summary>
     public GridState SetSort(string propertyName)
     {
-        var nextDirection = Sort?.PropertyName == propertyName
-            ? Sort.Direction switch
-            {
-                SortDirection.None => SortDirection.Ascending,
-                SortDirection.Ascending => SortDirection.Descending,
-                SortDirection.Descending => SortDirection.None,
-                _ => SortDirection.Ascending
-            }
-            : SortDirection.Ascending;
-
-        return this with
+        var existing = Sorts.FirstOrDefault(s => s.PropertyName == propertyName);
+        if (existing is not null)
         {
-            Sort = nextDirection == SortDirection.None ? null : new SortDescriptor(propertyName, nextDirection)
-        };
+            var next = existing.Direction switch
+            {
+                SortDirection.Ascending => SortDirection.Descending,
+                _ => SortDirection.None
+            };
+
+            return next == SortDirection.None
+                ? RemoveSort(propertyName)
+                : SetSortColumn(new SortDescriptor(propertyName, next));
+        }
+
+        return SetSortColumn(new SortDescriptor(propertyName, SortDirection.Ascending));
     }
 
-    /// <summary>Returns a new state with <see cref="Sort"/> set directly (bypassing the click-to-cycle behavior of <see cref="SetSort(string)"/>).</summary>
-    public GridState SetSort(SortDescriptor? sort) => this with { Sort = sort };
+    /// <summary>
+    /// Returns a new state that sorts <em>only</em> by the given key (or is
+    /// unsorted, if <c>null</c>), discarding any other sort keys. Use
+    /// <see cref="AddSort"/> to build a two-column sort instead of replacing.
+    /// </summary>
+    public GridState SetSort(SortDescriptor? sort) =>
+        this with { Sorts = sort is null ? [] : [sort] };
+
+    /// <summary>Returns a new state with <see cref="Sorts"/> set directly, capped at <see cref="MaxSortColumns"/> keys.</summary>
+    public GridState SetSorts(IReadOnlyList<SortDescriptor> sorts) =>
+        this with { Sorts = sorts.Take(MaxSortColumns).ToList() };
+
+    /// <summary>
+    /// Adds or updates a sort key. If the column is already a sort key, its
+    /// direction is updated in place, keeping its priority. Otherwise it's
+    /// added as the newest (lowest-priority) key: when that would exceed
+    /// <see cref="MaxSortColumns"/>, the current secondary key is dropped so
+    /// the new one takes its slot, always leaving the primary sort intact.
+    /// A key with <see cref="SortDirection.None"/> is removed instead.
+    /// </summary>
+    public GridState AddSort(SortDescriptor sort) =>
+        sort.Direction == SortDirection.None ? RemoveSort(sort.PropertyName) : SetSortColumn(sort);
+
+    /// <summary>
+    /// Removes the sort key for the given property, if any, promoting the keys
+    /// behind it (so removing the primary sort makes the secondary the new
+    /// primary). Returns <c>this</c> unchanged when the column isn't sorted.
+    /// </summary>
+    public GridState RemoveSort(string propertyName)
+    {
+        if (Sorts.All(s => s.PropertyName != propertyName))
+        {
+            return this;
+        }
+
+        return this with { Sorts = Sorts.Where(s => s.PropertyName != propertyName).ToList() };
+    }
+
+    private GridState SetSortColumn(SortDescriptor sort)
+    {
+        var index = -1;
+        for (var i = 0; i < Sorts.Count; i++)
+        {
+            if (Sorts[i].PropertyName == sort.PropertyName)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        var updated = Sorts.ToList();
+        if (index >= 0)
+        {
+            // Already a sort key: update its direction, keep its priority.
+            if (updated[index] == sort)
+            {
+                return this;
+            }
+
+            updated[index] = sort;
+        }
+        else if (updated.Count < MaxSortColumns)
+        {
+            updated.Add(sort);
+        }
+        else
+        {
+            // At capacity: the newest key replaces the current secondary,
+            // leaving the primary sort untouched.
+            updated[^1] = sort;
+        }
+
+        return this with { Sorts = updated };
+    }
 
     /// <summary>
     /// Adds or replaces the filter for <paramref name="filter"/>'s property.

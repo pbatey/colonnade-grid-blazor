@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0-preview.3]
 
+### Added
+
+- Two-column sorting. Sorting a second column now keeps the first as the
+  primary sort and adds the new one as a tie-breaker, rather than replacing it.
+  When two columns are sorted, each shows a small `1`/`2` badge next to its sort
+  arrow indicating its priority (the badge is hidden for a single sort). Cycling
+  a column's direction keeps its position; turning off the primary sort promotes
+  the secondary; and selecting a third column replaces the secondary, so at most
+  two columns sort at once. `GridState` gains an ordered `Sorts` list (capped at
+  two) alongside the existing `Sort`, which is now the primary key for
+  backward compatibility; `DataRequest`, `GroupListRequest`, and
+  `GroupPagesRequest` likewise expose `Sorts` while keeping `Sort` as the primary
+  so single-column data providers keep working unchanged. `GridState` adds
+  `AddSort`, `RemoveSort`, and `SetSorts`. The built-in `InMemoryDataProvider`
+  applies both keys (`OrderBy`/`ThenBy`).
+
 ### Fixed
 
 - Column-header "…" menu (`ColumnMenu`) and the "+" columns menu (`ColumnsMenu`)

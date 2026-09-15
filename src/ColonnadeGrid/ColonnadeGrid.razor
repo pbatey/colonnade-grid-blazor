@@ -82,6 +82,12 @@
                                 {
                                     <SortDesc16 Color="currentColor" />
                                 }
+                                @* The 1/2 order badge only appears while two columns
+                                   are sorted — a lone sort needs no ordering hint. *@
+                                @if (GetSortOrder(column) is { } sortOrder)
+                                {
+                                    <span class="cg-sort-order">@sortOrder</span>
+                                }
                             </button>
                         }
                         @if (GetActiveFilter(column) is not null)
@@ -118,7 +124,8 @@
                                             CanHide="VisibleColumns.Count > 1"
                                             ShownColumnIds="VisibleColumns.Select(c => c.Id).ToHashSet()"
                                             OpenToFilterView="_openColumnMenuOpensToFilterView"
-                                            OnSortChanged="OnSortChangedAsync"
+                                            OnSortAdded="OnSortAddedAsync"
+                                            OnSortRemoved="() => OnSortRemovedAsync(column.PropertyName)"
                                             OnFilterApplied="OnFilterAppliedAsync"
                                             OnFilterCleared="() => OnFilterClearedAsync(column.PropertyName)"
                                             OnGroupToggled="OnGroupByToggledAsync"

@@ -174,14 +174,105 @@ public class GridStateTests
     }
 
     [Fact]
-    public void SetSort_SwitchingColumn_StartsAtAscending()
+    public void SetSort_AddingSecondColumn_KeepsFirstAndAppendsAscending()
     {
         var state = CreateState();
 
         var descendingOnA = state.SetSort("A").SetSort("A");
-        var switchedToB = descendingOnA.SetSort("B");
+        var withB = descendingOnA.SetSort("B");
 
-        Assert.Equal(new SortDescriptor("B", SortDirection.Ascending), switchedToB.Sort);
+        // The first sort stays primary; the newly clicked column joins as the
+        // secondary key, starting ascending.
+        Assert.Equal(
+            new[]
+            {
+                new SortDescriptor("A", SortDirection.Descending),
+                new SortDescriptor("B", SortDirection.Ascending)
+            },
+            withB.Sorts);
+    }
+
+    [Fact]
+    public void SetSort_CyclingASecondaryColumn_KeepsItsPosition()
+    {
+        var state = CreateState().SetSort("A").SetSort("B");
+
+        // Cycling B (Ascending -> Descending) must not reorder it ahead of A.
+        var bDescending = state.SetSort("B");
+
+        Assert.Equal(
+            new[]
+            {
+                new SortDescriptor("A", SortDirection.Ascending),
+                new SortDescriptor("B", SortDirection.Descending)
+            },
+            bDescending.Sorts);
+    }
+
+    [Fact]
+    public void SetSort_SelectingThirdColumn_ReplacesTheSecondary()
+    {
+        var state = CreateState().SetSort("A").SetSort("B");
+
+        // Two columns are already sorted; a third takes the secondary slot,
+        // leaving the primary untouched.
+        var withC = state.SetSort("C");
+
+        Assert.Equal(
+            new[]
+            {
+                new SortDescriptor("A", SortDirection.Ascending),
+                new SortDescriptor("C", SortDirection.Ascending)
+            },
+            withC.Sorts);
+    }
+
+    [Fact]
+    public void SetSort_TurningOffPrimary_PromotesSecondary()
+    {
+        var state = CreateState().SetSort("A").SetSort("B");
+
+        // A: Ascending -> Descending -> off. Removing it promotes B to primary.
+        var afterClearingA = state.SetSort("A").SetSort("A");
+
+        Assert.Equal(new[] { new SortDescriptor("B", SortDirection.Ascending) }, afterClearingA.Sorts);
+        Assert.Equal(new SortDescriptor("B", SortDirection.Ascending), afterClearingA.Sort);
+    }
+
+    [Fact]
+    public void AddSort_NeverExceedsTwoColumns()
+    {
+        var state = CreateState()
+            .AddSort(new SortDescriptor("A", SortDirection.Ascending))
+            .AddSort(new SortDescriptor("B", SortDirection.Ascending))
+            .AddSort(new SortDescriptor("C", SortDirection.Descending));
+
+        Assert.Equal(GridState.MaxSortColumns, state.Sorts.Count);
+        Assert.Equal(
+            new[]
+            {
+                new SortDescriptor("A", SortDirection.Ascending),
+                new SortDescriptor("C", SortDirection.Descending)
+            },
+            state.Sorts);
+    }
+
+    [Fact]
+    public void AddSort_WithNoneDirection_RemovesTheColumn()
+    {
+        var state = CreateState().SetSort("A").SetSort("B");
+
+        var withoutA = state.AddSort(new SortDescriptor("A", SortDirection.None));
+
+        Assert.Equal(new[] { new SortDescriptor("B", SortDirection.Ascending) }, withoutA.Sorts);
+    }
+
+    [Fact]
+    public void RemoveSort_UnsortedColumn_ReturnsSameInstance()
+    {
+        var state = CreateState().SetSort("A");
+
+        Assert.Same(state, state.RemoveSort("B"));
     }
 
     [Fact]
