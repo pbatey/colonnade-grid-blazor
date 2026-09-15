@@ -634,6 +634,50 @@ public class ColonnadeGridTests : BunitContext
         Assert.Equal("Status", provider.Requests[^1].GroupByPropertyName);
     }
 
+    // R5 — graceful degradation. In this test host JS interop is Loose (see the
+    // constructor), so positionFloatingPanel never runs and the panel keeps its
+    // pre-JS state: the CSS-fallback markup from ColumnMenu.razor.css
+    // (position:absolute; right:0; top:calc(100% + 4px)) rendered inside its
+    // anchor. bUnit has no layout engine, so these assert the *markup/structure*
+    // that the fallback CSS targets — never pixel positions or inline fixed styles.
+
+    [Fact]
+    public void ColumnMenu_WithoutJsInterop_RendersFallbackMarkupInsideItsAnchor()
+    {
+        var cut = Render<IssueGridHost>(p => p.Add(x => x.Items, SampleIssues.Create()));
+        cut.WaitForState(() => cut.FindAll(".cg-body-row").Count == 4);
+
+        OpenColumnMenu(cut, "Title");
+
+        // The panel renders with the class the fallback CSS rule (.cg-column-menu)
+        // targets, and it lives inside the .cg-column-menu-anchor span next to its
+        // trigger — the containing block the fallback's right:0 / top:100% resolves
+        // against. No JS interop has repositioned it.
+        var panel = cut.Find(".cg-column-menu");
+        Assert.Contains("cg-column-menu", panel.ClassList);
+
+        var anchor = panel.Closest(".cg-column-menu-anchor");
+        Assert.NotNull(anchor);
+        Assert.NotNull(anchor!.QuerySelector(".cg-column-menu-button"));
+    }
+
+    [Fact]
+    public void ColumnsMenu_WithoutJsInterop_RendersFallbackMarkupInsideItsAnchor()
+    {
+        var cut = Render<IssueGridHost>(p => p.Add(x => x.Items, SampleIssues.Create()));
+        cut.WaitForState(() => cut.FindAll(".cg-body-row").Count == 4);
+
+        cut.Find(".cg-columns-button").Click();
+        cut.WaitForState(() => cut.FindAll(".cg-columns-menu").Count == 1);
+
+        var panel = cut.Find(".cg-columns-menu");
+        Assert.Contains("cg-columns-menu", panel.ClassList);
+
+        var anchor = panel.Closest(".cg-columns-menu-anchor");
+        Assert.NotNull(anchor);
+        Assert.NotNull(anchor!.QuerySelector(".cg-columns-button"));
+    }
+
     [Fact]
     public void MissingItemsAndDataProvider_Throws()
     {

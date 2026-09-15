@@ -259,6 +259,22 @@
         {
             try
             {
+                // Move the panel back to its original DOM slot before Blazor
+                // removes it. positionFloatingPanel portals it to <body> to
+                // escape host clipping/containing-block ancestors; leaving it
+                // there would make Blazor's own removal throw (the node no
+                // longer lives under the parent Blazor expects).
+                await _module.InvokeVoidAsync("restoreFloatingPanel", _panelRef);
+            }
+            catch (JSException)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+
+            try
+            {
                 await _module.DisposeAsync();
             }
             catch (JSDisconnectedException)

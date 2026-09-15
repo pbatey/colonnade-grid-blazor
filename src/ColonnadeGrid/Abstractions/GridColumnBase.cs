@@ -32,6 +32,27 @@ public abstract class GridColumnBase<TItem>
     /// <summary>The column's display header text.</summary>
     public required string Title { get; init; }
 
+    /// <summary>
+    /// An optional label for this column in the columns (show/hide) menu,
+    /// independent of the header <see cref="Title"/>. Set this when the header
+    /// is intentionally text-less — e.g. an icon-only action column with a
+    /// blank <see cref="Title"/> or a custom <see cref="HeaderTemplate"/> — so
+    /// the column is still identifiable in the menu. When <c>null</c>/blank,
+    /// <see cref="EffectiveMenuTitle"/> falls back to <see cref="Title"/> then
+    /// <see cref="Id"/>.
+    /// </summary>
+    public string? MenuTitle { get; init; }
+
+    /// <summary>
+    /// The label to show for this column in the columns (show/hide) menu:
+    /// <see cref="MenuTitle"/> if set, otherwise <see cref="Title"/>, otherwise
+    /// <see cref="Id"/>. Never blank, so a title-less column is still nameable.
+    /// </summary>
+    public string EffectiveMenuTitle =>
+        !string.IsNullOrWhiteSpace(MenuTitle) ? MenuTitle!
+        : !string.IsNullOrWhiteSpace(Title) ? Title
+        : Id;
+
     /// <summary>Whether clicking this column's header sorts by it.</summary>
     public bool Sortable { get; init; }
 

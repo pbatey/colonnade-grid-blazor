@@ -27,6 +27,15 @@ public partial class GridColumn<TItem, TProp>
     [Parameter]
     public string? Title { get; set; }
 
+    /// <summary>
+    /// An optional label for this column in the columns (show/hide) menu, used
+    /// when the header should stay text-less (e.g. an icon-only action column
+    /// with a blank <see cref="Title"/> or a custom <see cref="HeaderTemplate"/>).
+    /// Falls back to <see cref="Title"/>, then the column id, when not set.
+    /// </summary>
+    [Parameter]
+    public string? MenuTitle { get; set; }
+
     /// <summary>Whether clicking this column's header sorts by it. Default <c>false</c>.</summary>
     [Parameter]
     public bool Sortable { get; set; }
@@ -84,6 +93,7 @@ public partial class GridColumn<TItem, TProp>
 
         var descriptor = new TypedGridColumn<TItem, TProp>(accessor, propertyName, Title, Id, Format)
         {
+            MenuTitle = MenuTitle,
             Sortable = Sortable,
             Filterable = Filterable,
             Groupable = Groupable,

@@ -1,0 +1,45 @@
+@namespace ColonnadeGrid.Internal
+
+@*
+    A double-chevron (« / ») icon for the pager's first/last buttons, drawn to
+    match BlazorOcticons' single ChevronLeft16/ChevronRight16 so the five pager
+    controls (first, prev, next, last) share one visual language. BlazorOcticons
+    ships no double-chevron, so this is the grid's own: the same 16x16 viewBox
+    and the *same* filled path BlazorOcticons uses for chevron-right-16,
+    rendered twice at the same scale (so the stroke weight and height match the
+    single chevrons exactly) and offset horizontally to read as a double
+    chevron. Takes the same Color parameter as the Octicon components.
+*@
+<svg xmlns="http://www.w3.org/2000/svg" width="@Size" height="@Size" viewBox="0 0 16 16" fill="@Color" aria-hidden="true">
+    @* Two copies of the full-size chevron, offset so the pair centers in the
+       16-unit box. The single path's own center is near x=9.08; the offsets
+       place the two chevrons at roughly x=5.6 and x=10.5. For Left, the whole
+       group is mirrored about the box center (translate(16) scale(-1 1)). *@
+    <g transform="@Transform">
+        <path transform="translate(-3.5 0)" d="@ChevronPath" />
+        <path transform="translate(1.4 0)" d="@ChevronPath" />
+    </g>
+</svg>
+
+@code {
+    /// <summary>Which way the double chevron points.</summary>
+    public enum ChevronDirection { Left, Right }
+
+    /// <summary>The direction the chevrons point. Default <see cref="ChevronDirection.Left"/>.</summary>
+    [Parameter] public ChevronDirection Direction { get; set; } = ChevronDirection.Left;
+
+    /// <summary>The fill color, matching the Octicon components' Color parameter. Default <c>currentColor</c>.</summary>
+    [Parameter] public string Color { get; set; } = "currentColor";
+
+    /// <summary>Width/height in pixels. Default 16, matching the *16 Octicon components.</summary>
+    [Parameter] public int Size { get; set; } = 16;
+
+    // BlazorOcticons' actual chevron-right-16 fill path (viewBox 0 0 16 16),
+    // captured from the rendered component so the geometry matches exactly.
+    private const string ChevronPath =
+        "M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z";
+
+    // The base path points right. For Left, mirror horizontally about the
+    // 16-unit viewBox center (x -> 16 - x) via translate + negative x-scale.
+    private string Transform => Direction == ChevronDirection.Right ? "" : "translate(16 0) scale(-1 1)";
+}

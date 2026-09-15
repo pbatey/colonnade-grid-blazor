@@ -9,18 +9,30 @@
 <div class="cg-row cg-group-pager-row" role="row" style="@GridTemplateStyle">
     <div class="cg-group-pager-cell" role="gridcell">
         <nav class="cg-group-pager" aria-label="Pages of @GroupName">
+            <button type="button" class="cg-group-pager-button cg-group-pager-first"
+                    disabled="@(PageIndex <= 0)"
+                    aria-label="First page"
+                    @onclick="() => OnPageRequested.InvokeAsync(0)">
+                <DoubleChevron Direction="DoubleChevron.ChevronDirection.Left" Color="currentColor" />
+            </button>
             <button type="button" class="cg-group-pager-button cg-group-pager-previous"
                     disabled="@(PageIndex <= 0)"
                     aria-label="Previous page"
                     @onclick="() => OnPageRequested.InvokeAsync(PageIndex - 1)">
                 <ChevronLeft16 Color="currentColor" />
             </button>
-            <span class="cg-group-pager-range">@RangeText</span>
+            <span class="cg-group-pager-status" aria-live="polite">Page @((PageIndex + 1).ToString("N0")) of @((LastPageIndex + 1).ToString("N0"))</span>
             <button type="button" class="cg-group-pager-button cg-group-pager-next"
                     disabled="@(PageIndex >= LastPageIndex)"
                     aria-label="Next page"
                     @onclick="() => OnPageRequested.InvokeAsync(PageIndex + 1)">
                 <ChevronRight16 Color="currentColor" />
+            </button>
+            <button type="button" class="cg-group-pager-button cg-group-pager-last"
+                    disabled="@(PageIndex >= LastPageIndex)"
+                    aria-label="Last page"
+                    @onclick="() => OnPageRequested.InvokeAsync(LastPageIndex)">
+                <DoubleChevron Direction="DoubleChevron.ChevronDirection.Right" Color="currentColor" />
             </button>
         </nav>
     </div>
@@ -46,14 +58,4 @@
     public EventCallback<int> OnPageRequested { get; set; }
 
     private int LastPageIndex => Math.Max(0, (TotalCount - 1) / PageSize);
-
-    private string RangeText
-    {
-        get
-        {
-            var first = (long)PageIndex * PageSize + 1;
-            var last = Math.Min(first + PageSize - 1, TotalCount);
-            return $"{first:N0}–{last:N0} of {TotalCount:N0}";
-        }
-    }
 }

@@ -61,4 +61,34 @@ public class TypedGridColumnTests
         Assert.True(column.Compare(high, low) > 0);
         Assert.Equal(0, column.Compare(low, low));
     }
+
+    [Fact]
+    public void EffectiveMenuTitle_PrefersMenuTitle_WhenSet()
+    {
+        var column = new TypedGridColumn<Widget, string>(w => w.Name, "Name", title: "", id: "open")
+        {
+            MenuTitle = "Call details"
+        };
+
+        Assert.Equal("Call details", column.EffectiveMenuTitle);
+    }
+
+    [Fact]
+    public void EffectiveMenuTitle_FallsBackToTitle_WhenMenuTitleBlank()
+    {
+        var column = new TypedGridColumn<Widget, string>(w => w.Name, "Name", title: "Full name", id: "name")
+        {
+            MenuTitle = "   "
+        };
+
+        Assert.Equal("Full name", column.EffectiveMenuTitle);
+    }
+
+    [Fact]
+    public void EffectiveMenuTitle_FallsBackToId_WhenMenuTitleAndTitleBlank()
+    {
+        var column = new TypedGridColumn<Widget, string>(w => w.Name, "Name", title: "", id: "open");
+
+        Assert.Equal("open", column.EffectiveMenuTitle);
+    }
 }

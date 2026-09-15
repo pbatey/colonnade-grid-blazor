@@ -156,6 +156,21 @@
       *whichever* behavior the host chooses actually works correctly.
     */
     display: block;
+    /*
+      Size to the widest row's content, but never narrower than the host
+      container. When the columns fit, `fit-content` clamps to 100% and the
+      1fr columns fill the width as before. When they don't (fixed widths, or
+      1fr columns pinned at their minmax floor, overflowing a host with
+      overflow-x:auto), this box grows to the full content width instead of
+      stopping at the visible edge. Every .cg-row is width:auto = 100% of THIS
+      box, so a row's background (hover/selected) and its bottom border — and
+      the header's active-column underbar — now extend across every column,
+      not just those in the initial viewport. Setting this on the shared
+      parent (not per row) keeps all rows the same width, so their 1fr tracks
+      still resolve identically and stay aligned (see .cg-row).
+    */
+    width: fit-content;
+    min-width: 100%;
 }
 
 /* Header row is rendered directly by this component; body/group-header rows

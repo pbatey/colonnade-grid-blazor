@@ -177,6 +177,24 @@ body {
     border-right: 0;
 }
 
+/*
+  Regression fixture for the column-menu positioning bug (see the
+  "REGRESSION FIXTURE" note in Pages/Home.razor). Deliberately narrow and
+  width-constrained with overflow-x:auto so the grid must scroll horizontally
+  and the column "…" menu's position:fixed math actually matters — that's the
+  condition under which the menu used to mis-position at the grid's
+  bottom-right. Same border/rounding/box-sizing conventions as
+  .demo-table-container.
+*/
+.demo-regression-fixture {
+    max-width: 480px;
+    overflow-x: auto;
+    border: 1px solid #d1d9e0b3;
+    border-radius: 6px;
+    box-sizing: border-box;
+    margin-bottom: 48px;
+}
+
 .badge {
     display: inline-block;
     padding: 2px 8px;

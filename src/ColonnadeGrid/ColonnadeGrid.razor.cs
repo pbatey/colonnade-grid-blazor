@@ -130,6 +130,12 @@ public partial class ColonnadeGrid<TItem>
     private CancellationTokenSource? _loadCts;
     private int _pageIndex;
     private int _pageSize = DefaultPageSize;
+    // The page size the host first configured. Kept so the "Rows per page"
+    // selector always offers it, even after the user picks a different size —
+    // otherwise a configured size that isn't in PageSizeOptions (e.g. a host
+    // PageSize of 15 with the default [25,50,100] options) would appear once
+    // and then vanish, leaving no way back to it.
+    private int? _initialPageSize;
     private int _lastPageIndexParameter;
     private int _lastPageSizeParameter = DefaultPageSize;
     private bool _lastEnablePaging;
@@ -257,6 +263,8 @@ public partial class ColonnadeGrid<TItem>
     /// </summary>
     private bool UpdatePagingFromParameters()
     {
+        _initialPageSize ??= PageSize;
+
         var reload = false;
 
         if (EnablePaging != _lastEnablePaging)
@@ -589,6 +597,20 @@ public partial class ColonnadeGrid<TItem>
         await LoadDataAsync();
         StateHasChanged();
     }
+
+    /// <summary>
+    /// The page-size choices shown in the pager: the configured
+    /// <see cref="PageSizeOptions"/> plus the host's initially-configured
+    /// <see cref="PageSize"/>, so that size stays selectable even after the
+    /// user switches away from it. The pager additionally includes the current
+    /// size; sorting/de-duplication happens there.
+    /// </summary>
+    private IReadOnlyList<int>? EffectivePageSizeOptions =>
+        PageSizeOptions is null
+            ? null
+            : (_initialPageSize is { } initial
+                ? PageSizeOptions.Append(initial).ToList()
+                : PageSizeOptions);
 
     private async Task SetStateAsync(GridState newState, bool reload)
     {

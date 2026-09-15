@@ -126,6 +126,62 @@
     </ColonnadeGrid>
 </div>
 
+@*
+    REGRESSION FIXTURE — column-menu positioning
+    --------------------------------------------
+    This second grid exists purely to guard against the column-menu
+    mis-positioning bug fixed in the `column-menu-position` spec: the per-column
+    "…" menu used to open at the bottom-right of the table instead of anchored
+    under the button that was clicked. The bug only reproduced reliably when the
+    grid lived inside a *narrow*, width-constrained `overflow-x: auto` wrapper
+    with a column near the LEFT edge (like the host app's "Escalation" column) —
+    so the grid must scroll horizontally and the menu's `position: fixed`
+    coordinates actually matter.
+
+    To eyeball a regression: open the leftmost column's ("Title") "…" menu here
+    and confirm the popup is anchored just under that button — not floating at
+    the lower-right of the grid — even after scrolling the wrapper horizontally.
+
+    It uses its own GridState (_fixtureState) so it never shares sort/filter/
+    column state with the main demo grid above.
+*@
+<div class="demo-page-content">
+    <h2>Regression fixture: column-menu positioning</h2>
+    <p>
+        Narrow, width-constrained <code>overflow-x: auto</code> wrapper with a
+        left-edge column. Open the <strong>Title</strong> column's <strong>…</strong>
+        menu and confirm the popup anchors under that button (not the grid's
+        bottom-right), even after scrolling this box sideways.
+    </p>
+</div>
+
+<div class="demo-regression-fixture">
+    <ColonnadeGrid TItem="Issue"
+                     Items="_issues"
+                     RowKey="@(i => i.Id.ToString())"
+                     @bind-State="_fixtureState">
+        <Columns>
+            <GridColumn Field="(Issue x) => x.Title" Title="Title" Sortable="true" Filterable="true" />
+            <GridColumn Field="(Issue x) => x.Status" Title="Status" Groupable="true">
+                <CellTemplate Context="issue">
+                    <span class="badge badge-status-@issue.Status.ToString().ToLowerInvariant()">@issue.Status</span>
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.Priority" Title="Priority" Sortable="true" Filterable="true" Groupable="true">
+                <CellTemplate Context="issue">
+                    <span class="badge badge-priority-@issue.Priority.ToString().ToLowerInvariant()">@issue.Priority</span>
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.Assignee" Title="Assignee" Filterable="true">
+                <CellTemplate Context="issue">
+                    @(issue.Assignee ?? "—")
+                </CellTemplate>
+            </GridColumn>
+            <GridColumn Field="(Issue x) => x.DueDate" Title="Due" Sortable="true" Filterable="true" Format="MMM d, yyyy" />
+        </Columns>
+    </ColonnadeGrid>
+</div>
+
 @code {
     private readonly List<Issue> _issues = IssueData.CreateSampleIssues();
     private SimulatedRemoteDataProvider<Issue>? _remoteProvider;
@@ -137,6 +193,10 @@
     private bool _enablePaging;
     private GridState? _state;
     private IReadOnlySet<string> _selectedKeys = new HashSet<string>();
+
+    // Own state for the regression fixture grid so it never shares sort/filter/
+    // column state with the main demo grid above.
+    private GridState? _fixtureState;
 
     private IEnumerable<Issue>? EffectiveItems => _useRemoteProvider ? null : _issues;
 

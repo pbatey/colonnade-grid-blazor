@@ -17,6 +17,9 @@ public class ColonnadeGridPagingTests : BunitContext
     private static string FirstTitle(IRenderedComponent<IssueGridHost> cut) =>
         cut.Find(".cg-body-row .cg-cell").TextContent;
 
+    private static void AssertStatus(IRenderedComponent<IssueGridHost> cut, string expected) =>
+        cut.WaitForAssertion(() => Assert.Equal(expected, cut.Find(".cg-pager-status").TextContent.Trim()));
+
     [Fact]
     public void PagingDisabled_RequestsEveryRow_AndRendersNoPager()
     {
@@ -32,7 +35,7 @@ public class ColonnadeGridPagingTests : BunitContext
     }
 
     [Fact]
-    public void PagingEnabled_ShowsFirstPage_WithRangeAndPageButtons()
+    public void PagingEnabled_ShowsFirstPage_WithRangeAndStatus()
     {
         var cut = Render<IssueGridHost>(p => p
             .Add(x => x.Items, SampleIssues.CreateMany(23))
@@ -42,9 +45,10 @@ public class ColonnadeGridPagingTests : BunitContext
         AssertRange(cut, "1–10 of 23");
         Assert.Equal(10, cut.FindAll(".cg-body-row").Count);
         Assert.Equal("Issue 01", FirstTitle(cut));
-        Assert.Equal(["1", "2", "3"], cut.FindAll(".cg-pager-page").Select(b => b.TextContent.Trim()));
-        Assert.Equal("page", cut.Find(".cg-pager-page-current").GetAttribute("aria-current"));
+        AssertStatus(cut, "Page 1 of 3");
+        Assert.True(cut.Find(".cg-pager-first").HasAttribute("disabled"));
         Assert.True(cut.Find(".cg-pager-previous").HasAttribute("disabled"));
+        Assert.False(cut.Find(".cg-pager-last").HasAttribute("disabled"));
     }
 
     [Fact]
@@ -66,7 +70,7 @@ public class ColonnadeGridPagingTests : BunitContext
     }
 
     [Fact]
-    public void NextAndPageButtons_ShowThatPage()
+    public void NextAndLastButtons_ShowThatPage()
     {
         var cut = Render<IssueGridHost>(p => p
             .Add(x => x.Items, SampleIssues.CreateMany(23))
@@ -76,12 +80,19 @@ public class ColonnadeGridPagingTests : BunitContext
 
         cut.Find(".cg-pager-next").Click();
         AssertRange(cut, "11–20 of 23");
+        AssertStatus(cut, "Page 2 of 3");
         Assert.Equal("Issue 11", FirstTitle(cut));
 
-        cut.Find(".cg-pager-page[aria-label='Page 3']").Click();
+        cut.Find(".cg-pager-last").Click();
         AssertRange(cut, "21–23 of 23");
+        AssertStatus(cut, "Page 3 of 3");
         Assert.Equal(3, cut.FindAll(".cg-body-row").Count);
         Assert.True(cut.Find(".cg-pager-next").HasAttribute("disabled"));
+        Assert.True(cut.Find(".cg-pager-last").HasAttribute("disabled"));
+
+        cut.Find(".cg-pager-first").Click();
+        AssertRange(cut, "1–10 of 23");
+        AssertStatus(cut, "Page 1 of 3");
     }
 
     [Fact]
@@ -118,7 +129,8 @@ public class ColonnadeGridPagingTests : BunitContext
             .Add(x => x.PageSizeChanged, (int s) => pageSize = s)
             .Add(x => x.PageIndexChanged, (int i) => pageIndex = i));
         AssertRange(cut, "1–5 of 23");
-        cut.Find(".cg-pager-page[aria-label='Page 3']").Click();
+        cut.Find(".cg-pager-next").Click();
+        cut.Find(".cg-pager-next").Click();
         AssertRange(cut, "11–15 of 23");
 
         cut.Find(".cg-pager-size-select").Change("10");
@@ -221,5 +233,31 @@ public class ColonnadeGridPagingTests : BunitContext
             .Add(x => x.Items, SampleIssues.CreateMany(23))
             .Add(x => x.EnablePaging, true)
             .Add(x => x.PageSize, 0)));
+    }
+
+    [Fact]
+    public void InitialPageSize_NotInOptions_StaysSelectableAfterChange()
+    {
+        // Host configures PageSize=15 but leaves PageSizeOptions at the default
+        // [25, 50, 100], so 15 isn't one of the listed options. It must remain
+        // selectable after the user switches to another size, so they can go back.
+        var cut = Render<IssueGridHost>(p => p
+            .Add(x => x.Items, SampleIssues.CreateMany(60))
+            .Add(x => x.EnablePaging, true)
+            .Add(x => x.PageSize, 15));
+
+        static IReadOnlyList<string> Options(IRenderedComponent<IssueGridHost> c) =>
+            c.FindAll(".cg-pager-size-select option").Select(o => o.TextContent.Trim()).ToList();
+
+        cut.WaitForAssertion(() => Assert.Contains("15", Options(cut)));
+
+        cut.Find(".cg-pager-size-select").Change("25");
+
+        cut.WaitForAssertion(() => Assert.Contains("25", Options(cut)));
+        Assert.Contains("15", Options(cut));
+
+        // And the user can actually switch back to 15.
+        cut.Find(".cg-pager-size-select").Change("15");
+        AssertRange(cut, "1–15 of 60");
     }
 }
