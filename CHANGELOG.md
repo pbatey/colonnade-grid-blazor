@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0-preview.3]
+## [1.0.0-preview.4]
 
 ### Added
 
@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so single-column data providers keep working unchanged. `GridState` adds
   `AddSort`, `RemoveSort`, and `SetSorts`. The built-in `InMemoryDataProvider`
   applies both keys (`OrderBy`/`ThenBy`).
+
+## [1.0.0-preview.3]
 
 ### Fixed
 
