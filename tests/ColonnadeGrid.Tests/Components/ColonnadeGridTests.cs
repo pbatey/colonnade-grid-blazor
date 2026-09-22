@@ -469,6 +469,27 @@ public class ColonnadeGridTests : BunitContext
     }
 
     [Fact]
+    public void ColumnMenu_MoveLeftAndRight_KeepTheMenuOpen()
+    {
+        var cut = Render<IssueGridHost>(p => p.Add(x => x.Items, SampleIssues.Create()));
+        cut.WaitForState(() => cut.FindAll(".cg-body-row").Count == 4);
+
+        // Move right, then left again — the menu should stay open the whole
+        // time so the column can be stepped over several positions without
+        // reopening it (Move to start/end still close).
+        OpenColumnMenu(cut, "Title");
+        ClickColumnMenuItem(cut, "Move right");
+        cut.WaitForState(() =>
+            cut.FindAll("[data-column-id]").FirstOrDefault()?.GetAttribute("data-column-id") == "Status");
+        Assert.Single(cut.FindAll(".cg-column-menu"));
+
+        ClickColumnMenuItem(cut, "Move left");
+        cut.WaitForState(() =>
+            cut.FindAll("[data-column-id]").FirstOrDefault()?.GetAttribute("data-column-id") == "Title");
+        Assert.Single(cut.FindAll(".cg-column-menu"));
+    }
+
+    [Fact]
     public void ColumnMenu_MoveToEnd_MovesColumnToLastPosition()
     {
         var cut = Render<IssueGridHost>(p => p.Add(x => x.Items, SampleIssues.Create()));

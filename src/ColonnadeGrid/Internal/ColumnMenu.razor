@@ -397,9 +397,11 @@
         if (NearestVisibleIndexBefore is { } targetIndex)
         {
             await OnMove.InvokeAsync((Column.Id, targetIndex));
+            // Keep the menu open so the user can step the column over several
+            // positions without reopening it; re-anchor it to the trigger
+            // button, which has moved with the column (see RequestReposition).
+            RequestReposition();
         }
-
-        await OnClose.InvokeAsync();
     }
 
     private async Task MoveRightAsync()
@@ -407,9 +409,9 @@
         if (NearestVisibleIndexAfter is { } targetIndex)
         {
             await OnMove.InvokeAsync((Column.Id, targetIndex));
+            // Stay open and follow the moved column (see MoveLeftAsync).
+            RequestReposition();
         }
-
-        await OnClose.InvokeAsync();
     }
 
     private async Task MoveToStartAsync()
