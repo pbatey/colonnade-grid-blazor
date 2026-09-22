@@ -8,7 +8,7 @@
 
   <PropertyGroup>
     <PackageId>ColonnadeGrid</PackageId>
-    <Version>1.0.0-preview.4</Version>
+    <Version>1.0.0-preview.5</Version>
     <Description>A Blazor data grid with saved views — show/hide, reorder, resize, sort, filter, and group columns, all in serializable state. Works over an in-memory list or your own data provider, with self-contained CSS (no Bootstrap or Tailwind) themeable through CSS custom properties.</Description>
     <PackageReleaseNotes>Column menus now portal to the document body so they anchor to their trigger and are never clipped by host containers (transform/overflow); outside-click still closes them. Redesigned pager to first/prev/"Page X of Y"/next/last with a double-chevron icon. Added GridColumn.MenuTitle. Fixed the rows-per-page selector losing the initial size, the filter popup repositioning, and row highlight/underbar not spanning horizontally scrolled columns.</PackageReleaseNotes>
     <Authors>Phil Batey</Authors>
