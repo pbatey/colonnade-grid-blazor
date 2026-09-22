@@ -1,5 +1,8 @@
 @namespace ColonnadeGrid.Internal
 @using BlazorOcticons.Octicons
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
 
 @*
     A centered modal that hosts a column's filter editor when the column opts in
@@ -16,6 +19,14 @@
     A plain fixed overlay stacks by ordinary z-index, so such popups layer above
     it correctly. The z-index here is high enough to cover the page but well
     below the ~2.1e9 those popups use.
+
+    On open it portals itself to <body> (see portalDialogToBody): the dialog is
+    rendered deep inside the grid, and a transform/filter/contain on ANY ancestor
+    (e.g. a host panel's entrance-animation transform) establishes a containing
+    block that would anchor and clip this position:fixed overlay inside that
+    ancestor instead of the viewport. Reparenting to <body> makes "fixed" mean
+    the viewport again. It stays a plain overlay (not the top layer), so host
+    editor popups still layer above it by z-index.
 
     Escape or a backdrop click closes it; the inner panel stops click
     propagation so a click inside never dismisses it.
@@ -50,19 +61,28 @@
     public EventCallback OnClose { get; set; }
 
     private ElementReference _backdropRef;
+    private IJSObjectReference? _module;
+    private bool _portaled;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (!firstRender)
         {
+            return;
+        }
+
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ColonnadeGrid/colonnadeGrid.js");
+            // Escape a transformed/containing-block ancestor so position:fixed
+            // centers on the viewport (see the component comment).
+            await _module.InvokeVoidAsync("portalDialogToBody", _backdropRef);
+            _portaled = true;
             // Focus the overlay so Escape (its @onkeydown) works immediately.
-            try
-            {
-                await _backdropRef.FocusAsync();
-            }
-            catch (Exception)
-            {
-            }
+            await _backdropRef.FocusAsync();
+        }
+        catch (JSException)
+        {
         }
     }
 
@@ -74,4 +94,21 @@
         e.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
 
     private Task CloseAsync() => OnClose.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            if (_portaled)
+            {
+                // Return the node to its original slot before Blazor removes it;
+                // removing from a parent it no longer lives under would throw.
+                try { await _module.InvokeVoidAsync("restoreDialogToBody", _backdropRef); }
+                catch (JSException) { }
+                catch (JSDisconnectedException) { }
+            }
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+    }
 }

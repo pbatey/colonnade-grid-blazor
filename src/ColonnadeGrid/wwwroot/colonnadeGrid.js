@@ -349,3 +349,40 @@ export function initStickyHeaderShadow(sentinelEl, headerEl) {
 }
 
 
+
+// Moves the filter dialog's root element to <body> so its position:fixed
+// centering is relative to the VIEWPORT, not a transformed ancestor. A CSS
+// transform/filter/contain on any ancestor establishes a containing block for
+// fixed descendants, which would otherwise anchor (and clip) the dialog inside
+// that ancestor — e.g. the host's animated grid panel briefly carries a
+// transform during its entrance animation. Reparenting to <body> escapes all
+// such ancestors. Unlike showModal() this does NOT use the top layer, so
+// editor popups a host renders (e.g. a Syncfusion calendar appended to <body>)
+// still stack above the dialog by ordinary z-index. A comment-node placeholder
+// records the original slot so restoreDialogToBody can return it before Blazor
+// disposes the node. Idempotent.
+export function portalDialogToBody(dialogEl) {
+    if (!dialogEl || dialogEl._cgDialogPortal) {
+        return;
+    }
+    const placeholder = document.createComment('cg-filter-dialog');
+    dialogEl.before(placeholder);
+    dialogEl._cgDialogPortal = { placeholder };
+    document.body.appendChild(dialogEl);
+}
+
+// Reverses portalDialogToBody, returning the dialog to its original DOM slot so
+// Blazor can remove it cleanly. Safe to call if it was never portaled (no-op).
+export function restoreDialogToBody(dialogEl) {
+    const portal = dialogEl && dialogEl._cgDialogPortal;
+    if (!portal) {
+        return;
+    }
+    const { placeholder } = portal;
+    if (placeholder && placeholder.parentNode) {
+        placeholder.replaceWith(dialogEl);
+    } else if (dialogEl.parentNode === document.body) {
+        document.body.removeChild(dialogEl);
+    }
+    delete dialogEl._cgDialogPortal;
+}
