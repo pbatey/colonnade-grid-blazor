@@ -347,3 +347,5 @@ export function initStickyHeaderShadow(sentinelEl, headerEl) {
         }
     };
 }
+
+

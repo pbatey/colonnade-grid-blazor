@@ -13,46 +13,56 @@
     editor only builds the filter.
 *@
 <div class="cg-filter-popover" @onclick:stopPropagation="true">
-    @switch (EditorKind)
+    @if (Column.FilterTemplate is { } filterTemplate)
     {
-        case FilterKind.Values:
-            <ValuesFilterEditor @ref="_valuesEditor"
-                                PropertyName="@Column.PropertyName"
-                                PropertyType="Column.PropertyType"
-                                CurrentFilter="CurrentFilter"
-                                Stats="_stats"
-                                OnChanged="StateHasChanged" />
-            break;
-        case FilterKind.Number:
-        case FilterKind.Duration:
-            <RangeFilterEditor @ref="_rangeEditor"
-                               PropertyName="@Column.PropertyName"
-                               PropertyType="Column.PropertyType"
-                               Kind="EditorKind"
-                               CurrentFilter="CurrentFilter"
-                               Stats="_stats"
-                               OnChanged="StateHasChanged" />
-            break;
-        case FilterKind.Date:
-            <DateFilterEditor @ref="_dateEditor"
-                              PropertyName="@Column.PropertyName"
-                              PropertyType="Column.PropertyType"
-                              CurrentFilter="CurrentFilter"
-                              Stats="_stats"
-                              OnChanged="StateHasChanged" />
-            break;
-        default:
-            <select class="cg-filter-operator" value="@_operator" @onchange="OnOperatorChanged">
-                @foreach (var op in TextOperators)
+        @* The app owns the whole editor UI, including its own Apply/Clear —
+           it calls the context's callbacks, which route through the same path
+           as the built-in editors below. *@
+        @filterTemplate(BuildContext())
+    }
+    else
+    {
+        @switch (EditorKind)
+        {
+            case FilterKind.Values:
+                <ValuesFilterEditor @ref="_valuesEditor"
+                                    PropertyName="@Column.PropertyName"
+                                    PropertyType="Column.PropertyType"
+                                    CurrentFilter="CurrentFilter"
+                                    Stats="_stats"
+                                    OnChanged="StateHasChanged" />
+                break;
+            case FilterKind.Number:
+            case FilterKind.Duration:
+                <RangeFilterEditor @ref="_rangeEditor"
+                                   PropertyName="@Column.PropertyName"
+                                   PropertyType="Column.PropertyType"
+                                   Kind="EditorKind"
+                                   CurrentFilter="CurrentFilter"
+                                   Stats="_stats"
+                                   OnChanged="StateHasChanged" />
+                break;
+            case FilterKind.Date:
+                <DateFilterEditor @ref="_dateEditor"
+                                  PropertyName="@Column.PropertyName"
+                                  PropertyType="Column.PropertyType"
+                                  CurrentFilter="CurrentFilter"
+                                  Stats="_stats"
+                                  OnChanged="StateHasChanged" />
+                break;
+            default:
+                <select class="cg-filter-operator" value="@_operator" @onchange="OnOperatorChanged">
+                    @foreach (var op in TextOperators)
+                    {
+                        <option value="@op">@FormatOperator(op)</option>
+                    }
+                </select>
+                @if (_operator is not (FilterOperator.IsEmpty or FilterOperator.IsNotEmpty))
                 {
-                    <option value="@op">@FormatOperator(op)</option>
+                    <input type="text" class="cg-filter-value" @bind="_value" @bind:event="oninput" placeholder="Value" />
                 }
-            </select>
-            @if (_operator is not (FilterOperator.IsEmpty or FilterOperator.IsNotEmpty))
-            {
-                <input type="text" class="cg-filter-value" @bind="_value" @bind:event="oninput" placeholder="Value" />
-            }
-            break;
+                break;
+        }
     }
     @if (_statsState == StatsState.Loading)
     {
@@ -62,10 +72,13 @@
     {
         <div class="cg-filter-status">Couldn't load this column's values.</div>
     }
-    <div class="cg-filter-popover-actions">
-        <button type="button" disabled="@(!CanApply)" @onclick="ApplyAsync">Apply</button>
-        <button type="button" @onclick="ClearAsync">Clear</button>
-    </div>
+    @if (Column.FilterTemplate is null)
+    {
+        <div class="cg-filter-popover-actions">
+            <button type="button" disabled="@(!CanApply)" @onclick="ApplyAsync">Apply</button>
+            <button type="button" @onclick="ClearAsync">Clear</button>
+        </div>
+    }
 </div>
 
 @code {
@@ -150,7 +163,10 @@
             _value = textFilter.Value;
         }
 
-        if (LoadStats is null || Column.EffectiveFilterKind == FilterKind.Text)
+        // A custom template may need stats regardless of the column's inferred
+        // kind, so only the built-in text editor skips loading them.
+        var isBuiltInTextEditor = Column.FilterTemplate is null && Column.EffectiveFilterKind == FilterKind.Text;
+        if (LoadStats is null || isBuiltInTextEditor)
         {
             return;
         }
@@ -175,6 +191,27 @@
     }
 
     public void Dispose() => _statsCts.Cancel();
+
+    /// <summary>
+    /// The context handed to a column's <c>FilterTemplate</c>. Its Apply/Clear
+    /// route through the same <see cref="OnApply"/>/<see cref="OnClear"/> (then
+    /// <see cref="OnClose"/>) the built-in editors use, so a custom filter goes
+    /// through <c>GridState.SetFilter</c> — including its "effectively cleared"
+    /// handling — with no special-casing.
+    /// </summary>
+    private FilterEditorContext BuildContext() => new(
+        Column.PropertyName,
+        Column.PropertyType,
+        CurrentFilter,
+        _stats,
+        EventCallback.Factory.Create<FilterDescriptor>(this, ApplyFilterAsync),
+        EventCallback.Factory.Create(this, ClearAsync));
+
+    private async Task ApplyFilterAsync(FilterDescriptor filter)
+    {
+        await OnApply.InvokeAsync(filter);
+        await OnClose.InvokeAsync();
+    }
 
     private void OnOperatorChanged(ChangeEventArgs e)
     {

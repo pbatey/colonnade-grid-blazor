@@ -80,6 +80,25 @@ public abstract class GridColumnBase<TItem>
     /// <summary>Custom header content. When <c>null</c>, <see cref="Title"/> is rendered as plain text.</summary>
     public RenderFragment? HeaderTemplate { get; init; }
 
+    /// <summary>
+    /// A custom filter editor for this column, shown in place of the built-in
+    /// editor chosen by <see cref="EffectiveFilterKind"/>. Receives a
+    /// <see cref="FilterEditorContext"/> and owns its own UI, including applying
+    /// or clearing the filter. Requires <see cref="Filterable"/>; when set, it
+    /// overrides <see cref="FilterKind"/>. When <c>null</c>, the built-in editor
+    /// is used.
+    /// </summary>
+    public RenderFragment<FilterEditorContext>? FilterTemplate { get; init; }
+
+    /// <summary>
+    /// Shows this column's filter editor in a centered modal dialog instead of
+    /// the header dropdown, giving a richer editor (e.g. a calendar date range)
+    /// the room it needs. The editor itself is unchanged — the built-in one
+    /// chosen by <see cref="EffectiveFilterKind"/>, or a
+    /// <see cref="FilterTemplate"/> when set. Requires <see cref="Filterable"/>.
+    /// </summary>
+    public bool FilterInDialog { get; init; }
+
     /// <summary>Returns the raw property value for the given item, boxed.</summary>
     public abstract object? GetCellValue(TItem item);
 

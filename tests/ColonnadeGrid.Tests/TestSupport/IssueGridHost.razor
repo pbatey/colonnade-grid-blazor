@@ -13,6 +13,7 @@
                 Items="Items"
                 DataProvider="DataProvider"
                 EnableRowSelection="EnableRowSelection"
+                OnRowClick="OnRowClick"
                 RowKey="RowKey"
                 State="State"
                 StateChanged="StateChanged"
@@ -42,6 +43,7 @@
     [Parameter] public IEnumerable<Issue>? Items { get; set; }
     [Parameter] public IDataProvider<Issue>? DataProvider { get; set; }
     [Parameter] public bool EnableRowSelection { get; set; }
+    [Parameter] public EventCallback<Issue> OnRowClick { get; set; }
     [Parameter] public Func<Issue, string>? RowKey { get; set; }
     [Parameter] public GridState? State { get; set; }
     [Parameter] public EventCallback<GridState> StateChanged { get; set; }

@@ -28,6 +28,26 @@
     background: var(--cg-row-selected-bg);
 }
 
+/* Clickable rows (set via the grid's OnRowClick parameter): the whole row acts
+   as a button — pointer cursor, and a colored accent bar down the left edge
+   that appears only while the row is hovered or keyboard-focused, signalling
+   the row can be opened without cluttering every row at rest.
+   The bar is an inset box-shadow rather than a border-left or ::before because
+   .cg-cell uses overflow:hidden (a pseudo-element on the row would be clipped
+   by the first cell) and because a real border would shift the grid tracks;
+   an inset shadow paints over the row's own left edge without either problem. */
+.cg-row-clickable {
+    cursor: pointer;
+    /* Keep the focus outline inside the row so it isn't clipped by the
+       scroll container or overlapped by the sticky header. */
+    outline-offset: -2px;
+}
+
+.cg-row-clickable:hover,
+.cg-row-clickable:focus-visible {
+    box-shadow: inset 3px 0 0 0 var(--cg-accent-color);
+}
+
 .cg-cell {
     padding: 0 var(--cg-cell-padding-x);
     overflow: hidden;

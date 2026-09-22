@@ -46,6 +46,13 @@
     width: 300px;
 }
 
+/* Dialog mode: the dropdown stays mounted (so its portal bookkeeping and the
+   ColumnMenu that hosts the dialog live on) but is not shown — the centered
+   GridFilterDialog carries the filter editor instead. */
+.cg-column-menu-hidden {
+    display: none;
+}
+
 .cg-column-menu-item {
     display: flex;
     align-items: center;

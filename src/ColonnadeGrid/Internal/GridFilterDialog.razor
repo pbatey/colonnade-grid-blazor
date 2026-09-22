@@ -1,0 +1,77 @@
+@namespace ColonnadeGrid.Internal
+@using BlazorOcticons.Octicons
+
+@*
+    A centered modal that hosts a column's filter editor when the column opts in
+    with FilterInDialog.
+
+    Deliberately a regular fixed-position overlay (position:fixed; inset:0) with
+    its own dimmed backdrop — NOT a native <dialog> opened with showModal().
+    showModal() promotes the dialog to the browser's top layer, which paints
+    above every element that ISN'T in the top layer — including the popups of
+    third-party editors a host may drop into the filter's FilterTemplate (e.g. a
+    Syncfusion date-range picker renders its calendar in a normal, very-high
+    z-index .e-popup that is *not* in the top layer). Under showModal() that
+    calendar opened but was hidden behind the modal (verified with Playwright).
+    A plain fixed overlay stacks by ordinary z-index, so such popups layer above
+    it correctly. The z-index here is high enough to cover the page but well
+    below the ~2.1e9 those popups use.
+
+    Escape or a backdrop click closes it; the inner panel stops click
+    propagation so a click inside never dismisses it.
+*@
+<div class="cg-filter-dialog-backdrop" tabindex="-1" @ref="_backdropRef"
+     @onclick="OnBackdropClick" @onkeydown="OnKeyDown">
+    <div class="cg-filter-dialog" role="dialog" aria-modal="true" aria-label="@($"Filter {Title}")"
+         @onclick:stopPropagation="true">
+        <div class="cg-filter-dialog-header">
+            <span class="cg-filter-dialog-title">Filter @Title</span>
+            <button type="button" class="cg-filter-dialog-close" title="Close" aria-label="Close" @onclick="CloseAsync">
+                <X16 Color="currentColor" />
+            </button>
+        </div>
+        <div class="cg-filter-dialog-body">
+            @ChildContent
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>The column title, shown in the dialog header ("Filter {Title}").</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    /// <summary>The dialog contents — typically a FilterPopover.</summary>
+    [Parameter, EditorRequired]
+    public RenderFragment ChildContent { get; set; } = default!;
+
+    /// <summary>Raised when the dialog closes (Escape, close button, or backdrop click).</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private ElementReference _backdropRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Focus the overlay so Escape (its @onkeydown) works immediately.
+            try
+            {
+                await _backdropRef.FocusAsync();
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
+
+    // A click whose target is the backdrop itself (not the inner panel, which
+    // stops propagation) is a click outside the dialog — close.
+    private Task OnBackdropClick() => CloseAsync();
+
+    private Task OnKeyDown(KeyboardEventArgs e) =>
+        e.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+}

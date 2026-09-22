@@ -37,6 +37,20 @@ public partial class ColonnadeGrid<TItem>
     [Parameter]
     public bool EnableRowSelection { get; set; }
 
+    /// <summary>
+    /// Raised with the row's item when a body row is clicked (or activated with
+    /// Enter/Space). Setting this makes every body row "clickable": rows get a
+    /// pointer cursor, a keyboard-focusable button role, and a colored accent
+    /// bar down their left edge. Clicks that land on an interactive element
+    /// inside the row (a link, button, or the selection checkbox) are left to
+    /// that element and do not raise this callback.
+    /// </summary>
+    [Parameter]
+    public EventCallback<TItem> OnRowClick { get; set; }
+
+    /// <summary>Whether rows are clickable — true whenever <see cref="OnRowClick"/> has a handler.</summary>
+    private bool RowsClickable => OnRowClick.HasDelegate;
+
     /// <summary>Whether the header row sticks to the top of its scroll container while scrolling. Defaults to <c>true</c>.</summary>
     [Parameter]
     public bool EnableStickyHeader { get; set; } = true;

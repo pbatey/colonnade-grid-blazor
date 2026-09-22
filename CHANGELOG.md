@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Filter dialog mode. Set `FilterInDialog="true"` on a column to open its filter
+  editor in a centered modal dialog instead of the header dropdown, giving a
+  richer editor room. Escape, the close button, or an outside click dismisses it.
+  See [Filtering](docs/filtering.md#showing-the-filter-in-a-dialog).
+  A dialog pairs well with a column's own `FilterTemplate` for hosting a richer
+  editor (e.g. a date-range picker) from the host app's component library.
+
+- Clickable rows. Set the new `OnRowClick` (`EventCallback<TItem>`) parameter to
+  make every body row act as a button: rows gain a pointer cursor, a
+  keyboard-focusable `role="button"`/`tabindex`, Enter/Space activation, and a
+  colored accent bar down their left edge (themable via `--cg-accent-color`).
+  Clicking the selection checkbox still toggles selection without raising the
+  row click. See [Row selection & clickable rows](docs/row-selection.md).
+
 - Two-column sorting. Sorting a second column now keeps the first as the
   primary sort and adds the new one as a tie-breaker, rather than replacing it.
   When two columns are sorted, each shows a small `1`/`2` badge next to its sort

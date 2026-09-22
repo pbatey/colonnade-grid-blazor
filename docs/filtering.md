@@ -25,6 +25,23 @@ the data instead of typing:
 
 `FilterKind.Text` gives any column the operator-and-text editor.
 
+## Showing the filter in a dialog
+
+By default a column's filter editor opens in a dropdown attached to the header.
+Set `FilterInDialog="true"` to open it in a centered modal dialog instead, which
+gives a richer editor the room it needs. The editor is unchanged — the built-in
+one for the column's type, or a column's own `FilterTemplate`. Escape, the close
+button, or a click outside the dialog dismisses it.
+
+```razor
+<GridColumn Field="(Call x) => x.Opened" Title="Opened" Filterable="true" FilterInDialog="true" />
+```
+
+A dialog pairs well with a column's own `FilterTemplate` — for example, hosting
+a richer date-range picker from your app's component library. The template
+receives the same `FilterEditorContext` and applies its filter the same way,
+whether it renders in the dropdown or the dialog.
+
 ### Value checklist
 
 - Lists an enum's or boolean's own values. For other types (a text column set to

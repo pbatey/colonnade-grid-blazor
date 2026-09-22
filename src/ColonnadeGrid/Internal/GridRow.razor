@@ -3,10 +3,18 @@
 @attribute [CascadingTypeParameter(nameof(TItem))]
 @using ColonnadeGrid.Abstractions
 
-<div class="cg-row cg-body-row @(Selected ? "cg-row-selected" : "")" role="row" style="@GridTemplateStyle">
+@* A clickable row is a button (role/tabindex/keyboard) with a left accent bar;
+   a plain row is a passive grid row. The selection checkbox cell stops its own
+   clicks from bubbling to the row so toggling selection never navigates. *@
+<div class="cg-row cg-body-row @(Selected ? "cg-row-selected" : "") @(Clickable ? "cg-row-clickable" : "")"
+     role="@(Clickable ? "button" : "row")"
+     tabindex="@(Clickable ? "0" : null)"
+     style="@GridTemplateStyle"
+     @onclick="OnRowClickedAsync"
+     @onkeydown="OnRowKeyDownAsync">
     @if (EnableSelection)
     {
-        <div class="cg-cell cg-select-cell" role="gridcell">
+        <div class="cg-cell cg-select-cell" role="gridcell" @onclick:stopPropagation="true">
             <input type="checkbox" checked="@Selected" @onchange="OnToggleSelect" />
         </div>
     }
@@ -41,6 +49,35 @@
     [Parameter]
     public EventCallback OnToggleSelect { get; set; }
 
+    /// <summary>Whether this row is clickable (drives the button role, focusability, and left accent bar).</summary>
+    [Parameter]
+    public bool Clickable { get; set; }
+
+    /// <summary>Raised with <see cref="Item"/> when a clickable row is clicked or activated by keyboard.</summary>
+    [Parameter]
+    public EventCallback<TItem> OnRowClick { get; set; }
+
     [Parameter]
     public string? GridTemplateStyle { get; set; }
+
+    private Task OnRowClickedAsync()
+    {
+        if (!Clickable)
+        {
+            return Task.CompletedTask;
+        }
+
+        return OnRowClick.InvokeAsync(Item);
+    }
+
+    // Match native button activation: Enter and Space fire the click.
+    private Task OnRowKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (!Clickable || (e.Key != "Enter" && e.Key != " " && e.Key != "Spacebar"))
+        {
+            return Task.CompletedTask;
+        }
+
+        return OnRowClick.InvokeAsync(Item);
+    }
 }

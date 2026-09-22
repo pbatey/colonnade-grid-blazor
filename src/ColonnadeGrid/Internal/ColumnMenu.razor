@@ -14,7 +14,24 @@
     that embeds FilterPopover's operator/value editor inline (this menu
     supplies the floating panel chrome; FilterPopover just owns the form).
 *@
-<div class="cg-column-menu @(IsWideFilterView ? "cg-column-menu-wide" : "")" @ref="_panelRef" @onclick:stopPropagation="true">
+@* Dialog mode: the filter editor opens in a centered modal instead of this
+   dropdown's inline Filter view. The dropdown itself still renders its action
+   list (or nothing, when it opened straight to the filter) so its own portal
+   bookkeeping stays intact; the dialog is a sibling that hosts FilterPopover. *@
+@if (ShowFilterDialog)
+{
+    <GridFilterDialog Title="@Column.Title" OnClose="OnClose">
+        <FilterPopover TItem="TItem"
+                       Column="Column"
+                       CurrentFilter="CurrentFilter"
+                       LoadStats="LoadStats"
+                       OnApply="OnFilterApplied"
+                       OnClear="OnFilterCleared"
+                       OnClose="OnClose" />
+    </GridFilterDialog>
+}
+
+<div class="cg-column-menu @(IsWideFilterView ? "cg-column-menu-wide" : "") @(ShowFilterDialog ? "cg-column-menu-hidden" : "")" @ref="_panelRef" @onclick:stopPropagation="true">
     @if (_view == MenuView.Actions)
     {
         @if (Column.Sortable)
@@ -140,7 +157,7 @@
             <span>Move to end</span>
         </button>
     }
-    else
+    else if (!Column.FilterInDialog)
     {
         <button type="button" class="cg-column-menu-back" @onclick="BackToActions">
             <ArrowLeft16 Color="currentColor" />
@@ -242,7 +259,9 @@
     // value field).
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_positionedView == _view)
+        // In dialog mode the dropdown panel is hidden (the dialog hosts the
+        // filter), so there's nothing to position next to the header cell.
+        if (ShowFilterDialog || _positionedView == _view)
         {
             return;
         }
@@ -409,8 +428,11 @@
 
     private void BackToActions() => _view = MenuView.Actions;
 
-    /// <summary>The value, range, and date editors need more room than the action list.</summary>
-    private bool IsWideFilterView => _view == MenuView.Filter && Column.EffectiveFilterKind != FilterKind.Text;
+    /// <summary>Whether the filter editor should show in the centered modal dialog rather than this dropdown's inline view.</summary>
+    private bool ShowFilterDialog => _view == MenuView.Filter && Column.FilterInDialog;
+
+    /// <summary>The value, range, and date editors need more room than the action list (dropdown mode only; the dialog sizes itself).</summary>
+    private bool IsWideFilterView => _view == MenuView.Filter && !Column.FilterInDialog && Column.EffectiveFilterKind != FilterKind.Text;
 
     /// <summary>Repositions the panel after its next render, e.g. once the filter editor's stats arrive and change its size.</summary>
     private void RequestReposition() => _positionedView = null;

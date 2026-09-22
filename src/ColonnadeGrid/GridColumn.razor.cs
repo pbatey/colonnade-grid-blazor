@@ -75,6 +75,26 @@ public partial class GridColumn<TItem, TProp>
     [Parameter]
     public RenderFragment? HeaderTemplate { get; set; }
 
+    /// <summary>
+    /// A custom filter editor for this column, shown instead of the built-in one
+    /// (a value checklist, range, date, or text) when <see cref="Filterable"/> is
+    /// set. Receives a <see cref="FilterEditorContext"/> with the current filter,
+    /// the column's stats, and apply/clear callbacks, and owns its own UI — so it
+    /// can render pills, a date picker, or any bespoke form. Overrides
+    /// <see cref="FilterKind"/> for this column.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<FilterEditorContext>? FilterTemplate { get; set; }
+
+    /// <summary>
+    /// Shows this column's filter editor in a centered modal dialog instead of
+    /// the header dropdown when <see cref="Filterable"/> is set. Useful for a
+    /// richer editor — e.g. a calendar date range via <see cref="FilterTemplate"/>
+    /// — that needs more room than the dropdown offers. Default <c>false</c>.
+    /// </summary>
+    [Parameter]
+    public bool FilterInDialog { get; set; }
+
     private (Expression<Func<TItem, TProp>> Field, Func<TItem, TProp> Accessor)? _compiled;
 
     protected override void OnParametersSet()
@@ -99,7 +119,9 @@ public partial class GridColumn<TItem, TProp>
             Groupable = Groupable,
             FilterKind = FilterKind,
             CellTemplate = CellTemplate,
-            HeaderTemplate = HeaderTemplate
+            HeaderTemplate = HeaderTemplate,
+            FilterTemplate = FilterTemplate,
+            FilterInDialog = FilterInDialog
         };
 
         Context.RegisterColumn(descriptor);
