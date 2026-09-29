@@ -54,7 +54,7 @@
                 }
                 @foreach (var column in VisibleColumns)
                 {
-                    <div class="cg-cell cg-header-cell @(IsColumnActive(column) ? "cg-header-cell-active" : "")"
+                    <div class="cg-cell cg-header-cell @AlignClass(column) @(IsColumnActive(column) ? "cg-header-cell-active" : "")"
                          role="columnheader"
                          data-column-id="@column.Id"
                          aria-sort="@GetAriaSort(column)">

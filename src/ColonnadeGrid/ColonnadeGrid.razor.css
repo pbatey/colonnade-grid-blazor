@@ -382,6 +382,17 @@
     user-select: none;
 }
 
+/* Per-column horizontal alignment (GridColumn.Align). The header is a flex row
+   whose .cg-header-text grows to fill; aligning the text inside it moves the
+   label to the matching edge while the sort/filter/menu icons stay put. */
+.cg-header-cell.cg-align-right .cg-header-text {
+    text-align: right;
+}
+
+.cg-header-cell.cg-align-center .cg-header-text {
+    text-align: center;
+}
+
 .cg-header-text {
     /* Grows to fill the cell, pushing the sort indicator and "..." menu
        button to the right edge (min-width:0 lets it actually shrink/ellipsis

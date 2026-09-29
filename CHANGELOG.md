@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Per-column horizontal alignment. Set `Align="ColumnAlign.Right"` (or `Center`)
+  on a `GridColumn` to right/center-align that column's header label and body
+  cells — typical for numeric and duration columns. Defaults to `Left`, matching
+  the previous behavior.
+
 ### Changed
 
 - The column "…" menu's **Move left** / **Move right** now keep the menu open and

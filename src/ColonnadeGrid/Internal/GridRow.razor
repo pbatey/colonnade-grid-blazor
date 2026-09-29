@@ -2,6 +2,7 @@
 @typeparam TItem
 @attribute [CascadingTypeParameter(nameof(TItem))]
 @using ColonnadeGrid.Abstractions
+@using ColonnadeGrid.Models
 
 @* A clickable row is a button (role/tabindex/keyboard) with a left accent bar;
    a plain row is a passive grid row. The selection checkbox cell stops its own
@@ -20,7 +21,7 @@
     }
     @foreach (var column in Columns)
     {
-        <div class="cg-cell" role="gridcell">
+        <div class="cg-cell @AlignClass(column)" role="gridcell">
             @if (column.CellTemplate is not null)
             {
                 @column.CellTemplate(Item)
@@ -59,6 +60,14 @@
 
     [Parameter]
     public string? GridTemplateStyle { get; set; }
+
+    /// <summary>The alignment CSS class for a column's cells (empty for the default Left).</summary>
+    private static string AlignClass(GridColumnBase<TItem> column) => column.Align switch
+    {
+        ColumnAlign.Right => "cg-align-right",
+        ColumnAlign.Center => "cg-align-center",
+        _ => ""
+    };
 
     private Task OnRowClickedAsync()
     {

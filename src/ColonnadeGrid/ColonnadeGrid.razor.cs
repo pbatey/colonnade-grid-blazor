@@ -899,6 +899,14 @@ public partial class ColonnadeGrid<TItem>
     /// different track lists resolve their <c>1fr</c> tracks to different
     /// widths and misalign (see docs/architecture.md).
     /// </summary>
+    /// <summary>The cell CSS class for a column's horizontal alignment (empty for the default Left).</summary>
+    private static string AlignClass(GridColumnBase<TItem> column) => column.Align switch
+    {
+        ColumnAlign.Right => "cg-align-right",
+        ColumnAlign.Center => "cg-align-center",
+        _ => ""
+    };
+
     private string BuildGridTemplateColumns()
     {
         var tracks = new List<string>();

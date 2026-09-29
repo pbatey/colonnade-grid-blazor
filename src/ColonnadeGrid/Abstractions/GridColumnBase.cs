@@ -99,6 +99,13 @@ public abstract class GridColumnBase<TItem>
     /// </summary>
     public bool FilterInDialog { get; init; }
 
+    /// <summary>
+    /// Horizontal alignment for this column's header and body cells. Defaults to
+    /// <see cref="ColumnAlign.Left"/>; set <see cref="ColumnAlign.Right"/> for
+    /// numeric/duration columns so their values line up on the decimal edge.
+    /// </summary>
+    public ColumnAlign Align { get; init; } = ColumnAlign.Left;
+
     /// <summary>Returns the raw property value for the given item, boxed.</summary>
     public abstract object? GetCellValue(TItem item);
 

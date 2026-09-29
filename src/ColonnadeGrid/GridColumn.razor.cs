@@ -95,6 +95,14 @@ public partial class GridColumn<TItem, TProp>
     [Parameter]
     public bool FilterInDialog { get; set; }
 
+    /// <summary>
+    /// Horizontal alignment for this column's header and cells. Default
+    /// <see cref="ColumnAlign.Left"/>; use <see cref="ColumnAlign.Right"/> for
+    /// numeric/duration columns.
+    /// </summary>
+    [Parameter]
+    public ColumnAlign Align { get; set; } = ColumnAlign.Left;
+
     private (Expression<Func<TItem, TProp>> Field, Func<TItem, TProp> Accessor)? _compiled;
 
     protected override void OnParametersSet()
@@ -121,7 +129,8 @@ public partial class GridColumn<TItem, TProp>
             CellTemplate = CellTemplate,
             HeaderTemplate = HeaderTemplate,
             FilterTemplate = FilterTemplate,
-            FilterInDialog = FilterInDialog
+            FilterInDialog = FilterInDialog,
+            Align = Align
         };
 
         Context.RegisterColumn(descriptor);

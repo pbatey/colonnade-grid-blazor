@@ -71,3 +71,13 @@
     justify-content: center;
     padding: 0;
 }
+
+/* Per-column horizontal alignment (GridColumn.Align). Body cells render their
+   content as inline/block flow, so text-align handles it. */
+.cg-cell.cg-align-right {
+    text-align: right;
+}
+
+.cg-cell.cg-align-center {
+    text-align: center;
+}
