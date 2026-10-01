@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   several slots without reopening the menu. **Move to start** / **Move to end**
   still close the menu.
 
+- Sorting a third column now treats the sort keys as a most-recently-used window:
+  the oldest (primary) key is dropped and the remaining key shifts up, so sorting
+  columns A, then B, then C leaves B primary and C secondary (previously the
+  primary A was pinned, leaving A and C). At most two columns still sort at once.
+
 ## [1.0.0-preview.4]
 
 ### Added

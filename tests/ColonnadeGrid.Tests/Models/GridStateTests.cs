@@ -210,18 +210,19 @@ public class GridStateTests
     }
 
     [Fact]
-    public void SetSort_SelectingThirdColumn_ReplacesTheSecondary()
+    public void SetSort_SelectingThirdColumn_DropsTheOldestAndShiftsUp()
     {
         var state = CreateState().SetSort("A").SetSort("B");
 
-        // Two columns are already sorted; a third takes the secondary slot,
-        // leaving the primary untouched.
+        // Two columns are already sorted; a third pushes out the oldest (A) like
+        // a most-recently-used window — B shifts up to primary and C joins as the
+        // secondary.
         var withC = state.SetSort("C");
 
         Assert.Equal(
             new[]
             {
-                new SortDescriptor("A", SortDirection.Ascending),
+                new SortDescriptor("B", SortDirection.Ascending),
                 new SortDescriptor("C", SortDirection.Ascending)
             },
             withC.Sorts);
@@ -248,10 +249,12 @@ public class GridStateTests
             .AddSort(new SortDescriptor("C", SortDirection.Descending));
 
         Assert.Equal(GridState.MaxSortColumns, state.Sorts.Count);
+        // At capacity the oldest key (A) is dropped: B shifts up to primary and
+        // C becomes the secondary.
         Assert.Equal(
             new[]
             {
-                new SortDescriptor("A", SortDirection.Ascending),
+                new SortDescriptor("B", SortDirection.Ascending),
                 new SortDescriptor("C", SortDirection.Descending)
             },
             state.Sorts);
