@@ -209,10 +209,11 @@ public sealed record GridState
     /// </para>
     /// <para>
     /// If it isn't a sort key yet, it's added as the newest key: it becomes
-    /// the secondary sort when there's already a primary (replacing an
-    /// existing secondary, since a table sorts by at most
-    /// <see cref="MaxSortColumns"/> columns), or the primary when there was no
-    /// sort at all. New keys always start Ascending.
+    /// the secondary sort when there's already a primary, or the primary when
+    /// there was no sort at all. Since a table sorts by at most
+    /// <see cref="MaxSortColumns"/> columns, adding one past that drops the
+    /// oldest (primary) key, like a most-recently-used window — the former
+    /// secondary becomes the new primary. New keys always start Ascending.
     /// </para>
     /// </summary>
     public GridState SetSort(string propertyName)
@@ -250,9 +251,10 @@ public sealed record GridState
     /// Adds or updates a sort key. If the column is already a sort key, its
     /// direction is updated in place, keeping its priority. Otherwise it's
     /// added as the newest (lowest-priority) key: when that would exceed
-    /// <see cref="MaxSortColumns"/>, the current secondary key is dropped so
-    /// the new one takes its slot, always leaving the primary sort intact.
-    /// A key with <see cref="SortDirection.None"/> is removed instead.
+    /// <see cref="MaxSortColumns"/>, the sort keys act as a most-recently-used
+    /// window — the oldest (primary) key is dropped so the new one takes the
+    /// secondary slot and the former secondary becomes the new primary. A key
+    /// with <see cref="SortDirection.None"/> is removed instead.
     /// </summary>
     public GridState AddSort(SortDescriptor sort) =>
         sort.Direction == SortDirection.None ? RemoveSort(sort.PropertyName) : SetSortColumn(sort);
@@ -301,9 +303,13 @@ public sealed record GridState
         }
         else
         {
-            // At capacity: the newest key replaces the current secondary,
-            // leaving the primary sort untouched.
-            updated[^1] = sort;
+            // At capacity: the sort keys are a most-recently-used window, so the
+            // newest key pushes out the oldest (the current primary). Each
+            // remaining key shifts up one priority — the old secondary becomes
+            // the new primary and the new key becomes the secondary. Sorting A
+            // then B then C thus leaves (B, C), not (A, C).
+            updated.RemoveAt(0);
+            updated.Add(sort);
         }
 
         return this with { Sorts = updated };
