@@ -305,50 +305,50 @@ public static class IssueQueryBuilder
                 return column.Kind == ColumnKind.Text ? $"({col} IS NOT NULL AND {col} <> '')" : $"{col} IS NOT NULL";
 
             case FilterOperator.In:
-            {
-                // A value that can't be a value of the column can't match, so it's dropped.
-                var values = (filter.Values ?? [])
-                    .Select(value => TryBuildTypedValue(column, value, parameters))
-                    .OfType<string>()
-                    .ToList();
-                return WithEmpty(column, values.Count == 0 ? "FALSE" : $"{col} IN ({string.Join(", ", values)})", filter.IncludeEmpty);
-            }
+                {
+                    // A value that can't be a value of the column can't match, so it's dropped.
+                    var values = (filter.Values ?? [])
+                        .Select(value => TryBuildTypedValue(column, value, parameters))
+                        .OfType<string>()
+                        .ToList();
+                    return WithEmpty(column, values.Count == 0 ? "FALSE" : $"{col} IN ({string.Join(", ", values)})", filter.IncludeEmpty);
+                }
 
             case FilterOperator.Between:
-            {
-                var bounds = new List<string>();
-                if (!string.IsNullOrEmpty(filter.Value))
                 {
-                    bounds.Add($"{col} >= {RequireTypedValue(column, filter, filter.Value, parameters)}");
-                }
+                    var bounds = new List<string>();
+                    if (!string.IsNullOrEmpty(filter.Value))
+                    {
+                        bounds.Add($"{col} >= {RequireTypedValue(column, filter, filter.Value, parameters)}");
+                    }
 
-                if (!string.IsNullOrEmpty(filter.ValueTo))
-                {
-                    bounds.Add($"{col} <= {RequireTypedValue(column, filter, filter.ValueTo, parameters)}");
-                }
+                    if (!string.IsNullOrEmpty(filter.ValueTo))
+                    {
+                        bounds.Add($"{col} <= {RequireTypedValue(column, filter, filter.ValueTo, parameters)}");
+                    }
 
-                var range = bounds.Count == 0 ? $"{col} IS NOT NULL" : $"({string.Join(" AND ", bounds)})";
-                return WithEmpty(column, range, filter.IncludeEmpty);
-            }
+                    var range = bounds.Count == 0 ? $"{col} IS NOT NULL" : $"({string.Join(" AND ", bounds)})";
+                    return WithEmpty(column, range, filter.IncludeEmpty);
+                }
 
             case FilterOperator.WithinLast:
-            {
-                if (column.Kind is not (ColumnKind.Timestamp or ColumnKind.Date))
                 {
-                    throw new InvalidQueryException($"'{filter.PropertyName}' isn't a date, so it can't be filtered by a relative period.");
-                }
+                    if (column.Kind is not (ColumnKind.Timestamp or ColumnKind.Date))
+                    {
+                        throw new InvalidQueryException($"'{filter.PropertyName}' isn't a date, so it can't be filtered by a relative period.");
+                    }
 
-                // "now" is the browser's clock at request time (see Program.cs),
-                // as in the in-memory provider, so a saved "last 30 days" stays relative.
-                if (!RelativeDatePeriod.TryGetStart(filter.Value, now, out var start))
-                {
-                    throw new InvalidQueryException($"'{filter.Value}' isn't a period like P30D.");
-                }
+                    // "now" is the browser's clock at request time (see Program.cs),
+                    // as in the in-memory provider, so a saved "last 30 days" stays relative.
+                    if (!RelativeDatePeriod.TryGetStart(filter.Value, now, out var start))
+                    {
+                        throw new InvalidQueryException($"'{filter.Value}' isn't a period like P30D.");
+                    }
 
-                var period = $"({col} >= {AddParameter(parameters, start, NpgsqlDbType.Timestamp)} " +
-                             $"AND {col} <= {AddParameter(parameters, now, NpgsqlDbType.Timestamp)})";
-                return WithEmpty(column, period, filter.IncludeEmpty);
-            }
+                    var period = $"({col} >= {AddParameter(parameters, start, NpgsqlDbType.Timestamp)} " +
+                                 $"AND {col} <= {AddParameter(parameters, now, NpgsqlDbType.Timestamp)})";
+                    return WithEmpty(column, period, filter.IncludeEmpty);
+                }
         }
 
         if (filter.Value is null)

@@ -491,7 +491,8 @@ public partial class ColonnadeGrid<TItem>
 
         var request = EnablePaging
             ? new DataRequest((int)Math.Min((long)_pageIndex * _pageSize, int.MaxValue), _pageSize,
-                _state.Sort, _state.Filters, _state.GroupByPropertyName) { Sorts = _state.Sorts }
+                _state.Sort, _state.Filters, _state.GroupByPropertyName)
+            { Sorts = _state.Sorts }
             : new DataRequest(0, int.MaxValue, _state.Sort, _state.Filters, _state.GroupByPropertyName) { Sorts = _state.Sorts };
 
         DataResponse<TItem> response;
